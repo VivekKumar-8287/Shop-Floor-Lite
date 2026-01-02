@@ -1,0 +1,5 @@
+https://dashboard.ngrok.com/get-started/setup/windows
+
+open the terminal or navigate to the folder of ngrok
+ngrok config add-authtoken <key>
+ngrok http <port>
