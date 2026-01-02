@@ -1,0 +1,194 @@
+// routes/downtimeRoutes.js
+import express from 'express';
+import DowntimeEvent from '../models/DowntimeEvent.js';
+import Machine from '../models/Machine.js';
+import ReasonTree from '../models/ReasonTree.js';
+import { protect, requireRole } from '../middleware/authMiddleware.js';
+import { upload, compressImage } from '../middleware/uploadMiddleware.js';
+import fs from 'fs';
+import path from 'path';
+
+const router = express.Router();
+
+const uploadsDir = 'uploads';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// ... your existing routes ...
+
+// 5. Upload photo for downtime - USING MULTER
+router.post('/:id/photo', 
+  protect, 
+  requireRole(['operator']),
+  upload.single('photo'), // Multer middleware
+  compressImage, // Compression middleware
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { notes } = req.body;
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: 'No photo uploaded'
+        });
+      }
+
+      // Find the downtime event
+      const downtime = await DowntimeEvent.findOne({
+        _id: id,
+        operatorId: req.user.userId,
+        tenant_id: req.user.tenant_id
+      });
+
+      if (!downtime) {
+        // Delete uploaded file if downtime not found
+        if (req.file.path) {
+          fs.unlink(req.file.path, (err) => {
+            if (err) console.error('Error deleting file:', err);
+          });
+        }
+        return res.status(404).json({
+          success: false,
+          error: 'Downtime event not found'
+        });
+      }
+
+      // Convert image to base64 (for storage in database)
+      const imageBuffer = fs.readFileSync(req.file.path);
+      const base64Image = imageBuffer.toString('base64');
+      const mimeType = req.file.mimetype;
+      const photoBase64 = `data:${mimeType};base64,${base64Image}`;
+
+      // Update downtime with photo
+      downtime.photo = photoBase64;
+      downtime.photoPath = req.file.path; // Store file path
+      downtime.photoSize = req.file.sizeInKB || Math.round(req.file.size / 1024);
+      if (notes) downtime.notes = (downtime.notes || '') + `\nPhoto notes: ${notes}`;
+      
+      await downtime.save();
+
+      // Optionally delete the physical file after saving to DB
+      // fs.unlink(req.file.path, (err) => {
+      //   if (err) console.error('Error deleting file:', err);
+      // });
+
+      res.json({
+        success: true,
+        message: 'Photo uploaded successfully',
+        data: {
+          filename: req.file.filename,
+          sizeInKB: downtime.photoSize,
+          path: `/uploads/${req.file.filename}`,
+          mimeType: mimeType
+        }
+      });
+
+    } catch (error) {
+      console.error('Photo upload error:', error);
+      
+      // Delete uploaded file on error
+      if (req.file && req.file.path) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error('Error deleting file:', err);
+        });
+      }
+      
+      res.status(500).json({
+        success: false,
+        error: 'Failed to upload photo'
+      });
+    }
+  }
+);
+
+// 6. Get photo (optional endpoint)
+router.get('/:id/photo', protect, async (req, res) => {
+  try {
+    const downtime = await DowntimeEvent.findOne({
+      _id: req.params.id,
+      tenant_id: req.user.tenant_id
+    }).select('photo');
+
+    if (!downtime || !downtime.photo) {
+      return res.status(404).json({
+        success: false,
+        error: 'Photo not found'
+      });
+    }
+
+    // Send base64 image
+    res.json({
+      success: true,
+      data: {
+        photo: downtime.photo
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch photo'
+    });
+  }
+});
+
+// 7. Delete photo (optional endpoint)
+router.delete('/:id/photo', protect, requireRole(['operator']), async (req, res) => {
+  try {
+    const downtime = await DowntimeEvent.findOne({
+      _id: req.params.id,
+      operatorId: req.user.userId,
+      tenant_id: req.user.tenant_id
+    });
+
+    if (!downtime) {
+      return res.status(404).json({
+        success: false,
+        error: 'Downtime event not found'
+      });
+    }
+
+    // Delete physical file if exists
+    if (downtime.photoPath && fs.existsSync(downtime.photoPath)) {
+      fs.unlinkSync(downtime.photoPath);
+    }
+
+    // Clear photo data
+    downtime.photo = null;
+    downtime.photoPath = null;
+    downtime.photoSize = null;
+    await downtime.save();
+
+    res.json({
+      success: true,
+      message: 'Photo deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete photo'
+    });
+  }
+});
+
+export default router;
+
+4. Update Server.js to Serve Static Files:
+// server.js or index.js
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// For ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ... other imports and config ...
+
+const app = express();
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ... rest of your server code ...

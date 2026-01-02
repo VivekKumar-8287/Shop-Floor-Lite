@@ -1,0 +1,140 @@
+# Root .gitignore for LimeLight project
+# Covers both frontend (shop-floor-lite) and backend (shop-floor-backend)
+
+# ========== FRONTEND (shop-floor-lite) ==========
+shop-floor-lite/node_modules/
+shop-floor-lite/.expo/
+shop-floor-lite/dist/
+shop-floor-lite/web-build/
+shop-floor-lite/.next/
+shop-floor-lite/.vscode/
+shop-floor-lite/.idea/
+shop-floor-lite/*.log*
+shop-floor-lite/npm-debug.log*
+shop-floor-lite/yarn-debug.log*
+shop-floor-lite/yarn-error.log*
+shop-floor-lite/.env*
+shop-floor-lite/.env.local
+shop-floor-lite/.env.development.local
+shop-floor-lite/.env.test.local
+shop-floor-lite/.env.production.local
+shop-floor-lite/expo-web-*.json
+shop-floor-lite/__generated__/
+
+# Expo build files
+shop-floor-lite/.expo-shared/
+shop-floor-lite/.eas-build/
+shop-floor-lite/ios/
+shop-floor-lite/android/
+shop-floor-lite/.gradle/
+shop-floor-lite/local.properties
+
+# React Native
+shop-floor-lite/.jest/
+shop-floor-lite/coverage/
+shop-floor-lite/.nyc_output/
+
+# ========== BACKEND (shop-floor-backend) ==========
+shop-floor-backend/node_modules/
+shop-floor-backend/dist/
+shop-floor-backend/build/
+shop-floor-backend/.vscode/
+shop-floor-backend/.idea/
+shop-floor-backend/*.log*
+shop-floor-backend/npm-debug.log*
+shop-floor-backend/yarn-debug.log*
+shop-floor-backend/yarn-error.log*
+shop-floor-backend/.env*
+shop-floor-backend/.env.local
+shop-floor-backend/.env.development.local
+shop-floor-backend/.env.test.local
+shop-floor-backend/.env.production.local
+
+# Runtime data
+shop-floor-backend/.pnp.*
+shop-floor-backend/.yarn/*
+shop-floor-backend/.yarn/patches
+shop-floor-backend/.yarn/versions
+shop-floor-backend/.yarn/build-state.yml
+shop-floor-backend/.yarn/install-state.gz
+shop-floor-backend/.yarn/cache
+
+# Database
+shop-floor-backend/*.db
+shop-floor-backend/*.sqlite
+shop-floor-backend/mongodb-data/
+shop-floor-backend/data/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Editor directories and files
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# APK and build outputs
+*.apk
+*.aab
+*.ipa
+*.keystore
+*.jks
+*.p12
+*.key
+*.crt
+*.pem
+
+# ========== COMMON ==========
+# Logs
+logs/
+*.log
+
+# Dependency directories
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+coverage/
+.nyc_output/
+
+# Package managers
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
