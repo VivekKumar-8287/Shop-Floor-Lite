@@ -2,6 +2,21 @@
 # Covers both frontend (shop-floor-lite) and backend (shop-floor-backend)
 
 # ========== FRONTEND (shop-floor-lite) ==========
+# ========== ENVIRONMENT FILES (NEVER COMMIT) ==========
+# Backend
+shop-floor-backend/.env
+shop-floor-backend/.env.*
+shop-floor-backend/*.env
+# ========== NODE MODULES ==========
+node_modules/
+shop-floor-backend/node_modules/
+shop-floor-lite/node_modules/
+
+# Frontend  
+shop-floor-lite/.env
+shop-floor-lite/.env.*
+shop-floor-lite/*.env
+
 shop-floor-lite/node_modules/
 shop-floor-lite/.expo/
 shop-floor-lite/dist/
@@ -44,7 +59,7 @@ shop-floor-backend/*.log*
 shop-floor-backend/npm-debug.log*
 shop-floor-backend/yarn-debug.log*
 shop-floor-backend/yarn-error.log*
-shop-floor-backend/.env*
+shop-floor-backend/.env
 shop-floor-backend/.env.local
 shop-floor-backend/.env.development.local
 shop-floor-backend/.env.test.local

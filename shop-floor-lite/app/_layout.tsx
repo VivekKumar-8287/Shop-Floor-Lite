@@ -1,52 +1,62 @@
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { Provider } from 'react-redux';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { store } from '../store';
-import { useAuth } from '../hooks/useAuth';
-import { ActivityIndicator, Text, View } from 'react-native';
-import { ToastProvider } from '../hooks/useToast';
+import { Stack } from "expo-router";
+import { Provider } from "react-redux";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { store } from "../store";
+import { ToastProvider } from "../components/ToastProvider";
 
-import { WebToastContainer } from '../components/WebToastContainer';
-
-const queryClient = new QueryClient();
-
-function RootLayoutNav() {
-  const { isLoading, isAuthenticated } = useAuth();
-
-   console.log('RootLayoutNav - Auth state:', { isLoading, isAuthenticated });
-
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#007AFF" />
-         <Text>Loading authentication...</Text>
-      </View>
-    );
-  }
-
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
-        <Stack.Screen name="(app)" />
-      ) : (
-        <Stack.Screen name="(auth)" />
-      )}
-      <Stack.Screen name="+not-found" />
-    </Stack>
-  );
-}
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      onError: (error: any) => {
+        console.error("Query Error:", error);
+      },
+    },
+    mutations: {
+      onError: (error: any) => {
+        console.error("Mutation Error:", error);
+      },
+    },
+  },
+});
 
 export default function RootLayout() {
   return (
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <StatusBar style="auto" />
-        <RootLayoutNav />
-           <WebToastContainer />
-      </ToastProvider>
-      </QueryClientProvider>
-    </Provider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <Provider store={store}>
+        <QueryClientProvider client={queryClient}>
+          <ToastProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+
+              {/* Modals */}
+              <Stack.Screen
+                name="machine-detail/[id]"
+                options={{
+                  presentation: "modal",
+                  title: "Machine Details",
+                }}
+              />
+              <Stack.Screen
+                name="start-downtime"
+                options={{
+                  presentation: "modal",
+                  title: "Start Downtime",
+                }}
+              />
+              <Stack.Screen
+                name="create-alert"
+                options={{
+                  presentation: "modal",
+                  title: "Create Alert",
+                }}
+              />
+            </Stack>
+          </ToastProvider>
+        </QueryClientProvider>
+      </Provider>
+    </GestureHandlerRootView>
   );
 }

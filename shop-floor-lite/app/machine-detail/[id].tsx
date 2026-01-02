@@ -10,13 +10,13 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
-import { machineApi } from '../../../lib/api';
-import { downtimeApi } from '../../../lib/api';
-import { StatusIndicator } from '../../../components/StatusIndicator';
+import { machineApi } from '../../lib/api';
+import { downtimeApi } from '../../lib/api';
+import { StatusIndicator } from '../../components/StatusIndicator';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useToast } from '../../../hooks/useToast';
-import { RootState, AppDispatch } from '../../../store';
-import { endDowntime } from '../../../store/downtimeSlice';
+import { useToast } from '../../components/ToastProvider';
+import { RootState, AppDispatch } from '../../store';
+import { endDowntime } from '../../store/downtimeSlice';
 
 interface MachineDetail {
   _id: string;
@@ -219,7 +219,7 @@ export default function MachineDetail() {
 
   const handleStartDowntime = () => {
     router.push({
-      pathname: '/(app)/operator/downtime',
+      pathname: '/(tabs)/downtime',
       params: { 
         machineId: machine?._id || id, 
         machineName: machine?.name 
@@ -436,7 +436,7 @@ const handleEndAllDowntimes = async () => {
 
   const handleViewChecklist = () => {
     router.push({
-      pathname: '/(app)/operator/checklist',
+      pathname: '/(tabs)/maintenance',
       params: { 
         machineId: machine?._id || id, 
         machineName: machine?.name 
@@ -1260,18 +1260,5 @@ const styles = StyleSheet.create({
   endAllButton: {
     backgroundColor: '#8B5CF6', // Purple color
     marginTop: 12,
-  },
-  
-  // Update existing actionButton to have default width
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    gap: 8,
-    marginTop: 8,
-    // Remove fixed width if it exists
   },
 });

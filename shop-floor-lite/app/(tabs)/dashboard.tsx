@@ -16,7 +16,7 @@ import { MachineCard } from "../../components/MachineCard";
 import { KPICard } from "../../components/KPICard";
 import { useRouter } from "expo-router";
 import { machineApi, downtimeApi } from "../../lib/api"; // Add downtimeApi import
-import { MaterialIcons } from '@expo/vector-icons'; // Add this import
+import { MaterialIcons } from "@expo/vector-icons"; // Add this import
 
 export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
@@ -43,7 +43,7 @@ export default function DashboardScreen() {
     try {
       // REAL API CALL to your backend
       const response = await machineApi.getAll();
-      console.log("Response data",response.data)
+      console.log("Response data", response.data);
 
       if (response.data.success && Array.isArray(response.data.data)) {
         // Transform the data: map _id to id
@@ -98,34 +98,36 @@ export default function DashboardScreen() {
     try {
       setLoadingDowntimes(true);
       console.log("📊 Fetching all downtime records...");
-      
+
       const response = await downtimeApi.getAll();
       console.log("📦 Downtime API Response:", response.data);
-      
+
       if (response.data.success && Array.isArray(response.data.data)) {
         const allDowntimes = response.data.data;
         console.log(`✅ Found ${allDowntimes.length} downtime records`);
-        
+
         // Show summary in alert
         Alert.alert(
           "All Downtime Records",
           `Found ${allDowntimes.length} downtime records:\n\n` +
-          `Active: ${allDowntimes.filter((d: any) => !d.endTime).length}\n` +
-          `Completed: ${allDowntimes.filter((d: any) => d.endTime).length}\n\n` +
-          "See console for full details.",
+            `Active: ${allDowntimes.filter((d: any) => !d.endTime).length}\n` +
+            `Completed: ${
+              allDowntimes.filter((d: any) => d.endTime).length
+            }\n\n` +
+            "See console for full details.",
           [
             { text: "OK", style: "default" },
-            { 
-              text: "View Details", 
+            {
+              text: "View Details",
               onPress: () => {
                 // Navigate to a downtime list screen if you have one
-                // router.push('/(app)/downtime-list');
+                // router.push('/(tabs)/downtime');
                 console.log("Full downtime data:", allDowntimes);
-              }
-            }
+              },
+            },
           ]
         );
-        
+
         // Log all downtimes to console
         allDowntimes.forEach((downtime: any, index: number) => {
           console.log(`📝 Downtime ${index + 1}:`, {
@@ -133,14 +135,19 @@ export default function DashboardScreen() {
             machine: downtime.machineId?.name || downtime.machineId,
             reason: downtime.reasonCategory || downtime.reasonCode,
             startTime: new Date(downtime.startTime).toLocaleString(),
-            endTime: downtime.endTime ? new Date(downtime.endTime).toLocaleString() : 'Active',
-            duration: downtime.endTime 
-              ? Math.round((new Date(downtime.endTime).getTime() - new Date(downtime.startTime).getTime()) / 60000) + ' min'
-              : 'Ongoing',
-            operator: downtime.operatorId?.email || 'Unknown'
+            endTime: downtime.endTime
+              ? new Date(downtime.endTime).toLocaleString()
+              : "Active",
+            duration: downtime.endTime
+              ? Math.round(
+                  (new Date(downtime.endTime).getTime() -
+                    new Date(downtime.startTime).getTime()) /
+                    60000
+                ) + " min"
+              : "Ongoing",
+            operator: downtime.operatorId?.email || "Unknown",
           });
         });
-        
       } else {
         Alert.alert(
           "No Data",
@@ -169,13 +176,13 @@ export default function DashboardScreen() {
   const handleMachinePress = (machine: any) => {
     if (user?.role === "operator") {
       router.push({
-        pathname: "/(app)/operator/machine-detail",
+        pathname: `/machine-detail/${machine.id}`,
         params: { id: machine.id, name: machine.name },
       });
     } else {
       // Supervisor view - maybe show machine details or alerts
       router.push({
-        pathname: "/(app)/supervisor/alerts",
+        pathname: "/(tabs)/alerts",
         params: { machineId: machine.id },
       });
     }
@@ -259,7 +266,7 @@ export default function DashboardScreen() {
             <Text style={styles.errorText}>⚠️ {error}</Text>
           </View>
         )}
-        
+
         {/* All Downtime Records Button */}
         <TouchableOpacity
           style={styles.downtimeButton}
@@ -271,7 +278,9 @@ export default function DashboardScreen() {
           ) : (
             <>
               <MaterialIcons name="history" size={20} color="#fff" />
-              <Text style={styles.downtimeButtonText}>All Downtime Records</Text>
+              <Text style={styles.downtimeButtonText}>
+                All Downtime Records
+              </Text>
             </>
           )}
         </TouchableOpacity>
