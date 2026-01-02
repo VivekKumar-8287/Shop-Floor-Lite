@@ -45,8 +45,13 @@ export const machineApi = {
 };
 
 export const downtimeApi = {
+  // Get all downtime events
   getAll: () => api.get('/downtime/'),
+  
+  // Get reasons tree
   getReasons: () => api.get('/downtime/reasons'),
+  
+  // Start downtime
   start: (data: {
     machineId: string;
     reasonCategory: string;
@@ -55,10 +60,16 @@ export const downtimeApi = {
     tenant_id: string;
     startTime?: string;
   }) => api.post('/downtime/start', data),
+  
+  // End downtime - CHANGE FROM PUT TO POST to match your backend
   end: (id: string, data: { endTime: string; notes?: string }) => 
-    api.post(`/downtime/${id}/end`, data),
+    api.post(`/downtime/${id}/end`, data),  // Changed from PUT to POST
+    
+  // Upload photo (separate endpoint)
   uploadPhoto: (id: string, photoBase64: string) => 
     api.post(`/downtime/${id}/photo`, { photoBase64 }),
+  
+  // Get single downtime
   getById: (id: string) => api.get(`/downtime/${id}`),
 };
 

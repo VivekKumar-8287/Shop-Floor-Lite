@@ -5,8 +5,7 @@ import {
   StyleSheet, 
   ScrollView, 
   ActivityIndicator,
-  TouchableOpacity,
-  Alert
+  TouchableOpacity
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
@@ -50,7 +49,6 @@ export default function MachineDetail() {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeDowntime, setActiveDowntime] = useState<Downtime | null>(null);
-  const [checklistItems, setChecklistItems] = useState<any[]>([]);
   const [loadingDowntime, setLoadingDowntime] = useState(false);
   const [endingDowntime, setEndingDowntime] = useState(false);
   
@@ -160,22 +158,11 @@ export default function MachineDetail() {
     }
   }, [id, downtimeEntries]);
 
-  const loadChecklist = async () => {
-    // Mock checklist data
-    const mockChecklist = [
-      { id: '1', task: 'Check lubrication levels', due: 'Today', status: 'pending' },
-      { id: '2', task: 'Inspect cutting blades', due: 'Today', status: 'completed' },
-      { id: '3', task: 'Clean machine surfaces', due: 'Today', status: 'pending' },
-      { id: '4', task: 'Verify safety guards', due: 'Overdue', status: 'overdue' },
-    ];
-    setChecklistItems(mockChecklist);
-  };
-
+ 
   // Load all data
   useEffect(() => {
     if (id) {
       loadMachine();
-      loadChecklist();
     }
   }, [id, loadMachine]);
 
@@ -227,234 +214,141 @@ export default function MachineDetail() {
     });
   };
 
-  // FIXED: Improved end downtime function
-  const handleEndDowntimeSimple = () => {
+  // FIXED: End downtime function without Alert.alert
+  const handleEndDowntimeSimple = async () => {
     if (!activeDowntime) {
       showToast('No active downtime found', 'error');
       return;
     }
 
-    Alert.alert(
-      'End Downtime',
-      'Are you sure you want to end this downtime?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'End Downtime', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setEndingDowntime(true);
-              
-              // Get the correct downtime ID
-              const downtimeId = activeDowntime._id || activeDowntime.id;
-              console.log('🛑 Ending downtime with ID:', downtimeId);
-              
-              if (!downtimeId) {
-                throw new Error('No downtime ID found');
-              }
-              
-              const endTime = new Date().toISOString();
-              
-              // 1. Update Redux store
-              console.log('🔄 Dispatching to Redux...');
-              dispatch(endDowntime({
-                id: downtimeId,
-                endTime: endTime,
-                notes: 'Downtime ended by operator'
-              }));
-              
-              // 2. Update local state immediately
-              setActiveDowntime(null);
-              showToast('Downtime ended locally', 'success');
-              
-              // 3. Try to sync with API (online)
-              console.log('🌐 Attempting API sync...');
-              try {
-                const response = await downtimeApi.end(downtimeId, {
-                  endTime: endTime,
-                  notes: 'Downtime ended by operator'
-                });
-                
-                if (response.data.success) {
-                  console.log('✅ API sync successful');
-                  showToast('Downtime synced to server', 'success');
-                } else {
-                  console.log('⚠️ API response not successful');
-                  // Don't show error - offline sync will handle it
-                }
-              } catch (apiError) {
-                console.log('🌐 API call failed (might be offline)', apiError);
-                // This is okay - offline sync will handle it
-              }
-              
-            } catch (error: any) {
-              console.error('❌ Error ending downtime:', error);
-              showToast('Error ending downtime: ' + error.message, 'error');
-              // Reload downtime state to ensure consistency
-              checkActiveDowntime();
-            } finally {
-              setEndingDowntime(false);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // Add these functions to your component:
-
-// Function to end an existing downtime (from API)
-const handleEndExistingDowntime = async () => {
-  try {
-    setLoadingDowntime(true);
-    
-    // Fetch all downtimes from API
-    const response = await downtimeApi.getAll();
-    
-    if (response.data.success && Array.isArray(response.data.data)) {
-      const machineDowntimes = response.data.data.filter((downtime: Downtime) => {
-        const machineId = downtime.machineId;
-        const isMatch = 
-          (typeof machineId === 'object' && machineId?._id === id) ||
-          machineId === id;
+    try {
+      setEndingDowntime(true);
+      
+      // Get the correct downtime ID
+      const downtimeId = activeDowntime._id || activeDowntime.id;
+      console.log('🛑 Ending downtime with ID:', downtimeId);
+      
+      if (!downtimeId) {
+        throw new Error('No downtime ID found');
+      }
+      
+      const endTime = new Date().toISOString();
+      
+      // 1. Update Redux store
+      console.log('🔄 Dispatching to Redux...');
+      dispatch(endDowntime({
+        id: downtimeId,
+        endTime: endTime,
+        notes: 'Downtime ended by operator'
+      }));
+      
+      // 2. Update local state immediately
+      setActiveDowntime(null);
+      showToast('Downtime ended locally', 'success');
+      
+      // 3. Try to sync with API (online)
+      console.log('🌐 Attempting API sync...');
+      try {
+        const response = await downtimeApi.end(downtimeId, {
+          endTime: endTime,
+          notes: 'Downtime ended by operator'
+        });
         
-        return isMatch && !downtime.endTime;
-      });
-      
-      if (machineDowntimes.length === 0) {
-        showToast('No active downtimes found', 'info');
-        return;
+        if (response.data.success) {
+          console.log('✅ API sync successful');
+          showToast('Downtime synced to server', 'success');
+        } else {
+          console.log('⚠️ API response not successful');
+          // Don't show error - offline sync will handle it
+        }
+      } catch (apiError) {
+        console.log('🌐 API call failed (might be offline)', apiError);
+        // This is okay - offline sync will handle it
       }
       
-      // If we found active downtimes, show selection
-      if (machineDowntimes.length === 1) {
-        // Only one active downtime - end it directly
-        setActiveDowntime(machineDowntimes[0]);
-        handleEndDowntimeSimple();
-      } else {
-        // Multiple active downtimes - let user choose
-        Alert.alert(
-          'Select Downtime to End',
-          `Found ${machineDowntimes.length} active downtimes`,
-          machineDowntimes.map((dt: Downtime, index: number) => ({
-            text: `Downtime ${index + 1} (${formatDate(dt.startTime)})`,
-            onPress: () => {
-              setActiveDowntime(dt);
-              handleEndDowntimeSimple();
-            }
-          })).concat([{ text: 'Cancel', style: 'cancel' }])
-        );
-      }
+    } catch (error: any) {
+      console.error('❌ Error ending downtime:', error);
+      showToast('Error ending downtime: ' + error.message, 'error');
+      // Reload downtime state to ensure consistency
+      checkActiveDowntime();
+    } finally {
+      setEndingDowntime(false);
     }
-  } catch (error) {
-    console.error('Error fetching downtimes:', error);
-    showToast('Failed to load downtimes', 'error');
-  } finally {
-    setLoadingDowntime(false);
-  }
-};
+  };
 
-// Function to end ALL downtimes for this machine
-const handleEndAllDowntimes = async () => {
-  Alert.alert(
-    'End All Downtimes',
-    'This will end ALL active downtimes for this machine. Continue?',
-    [
-      { text: 'Cancel', style: 'cancel' },
-      { 
-        text: 'End All', 
-        style: 'destructive',
-        onPress: async () => {
+  // Function to end an existing downtime (from API)
+  const handleEndExistingDowntime = async () => {
+    try {
+      setLoadingDowntime(true);
+      
+      // Fetch all downtimes from API
+      const response = await downtimeApi.getAll();
+      
+      if (response.data.success && Array.isArray(response.data.data)) {
+        const machineDowntimes = response.data.data.filter((downtime: Downtime) => {
+          const machineId = downtime.machineId;
+          const isMatch = 
+            (typeof machineId === 'object' && machineId?._id === id) ||
+            machineId === id;
+          
+          return isMatch && !downtime.endTime;
+        });
+        
+        if (machineDowntimes.length === 0) {
+          showToast('No active downtimes found', 'info');
+          return;
+        }
+        
+        // If we found active downtimes, end the first one directly
+        if (machineDowntimes.length >= 1) {
+          const downtimeToEnd = machineDowntimes[0];
+          setActiveDowntime(downtimeToEnd);
+          
+          // End the downtime immediately
+          const downtimeId = downtimeToEnd._id || downtimeToEnd.id;
+          
+          if (!downtimeId) {
+            showToast('No downtime ID found', 'error');
+            return;
+          }
+          
+          const endTime = new Date().toISOString();
+          
+          // Update Redux store
+          dispatch(endDowntime({
+            id: downtimeId,
+            endTime: endTime,
+            notes: 'Downtime ended by operator'
+          }));
+          
+          // Update local state immediately
+          setActiveDowntime(null);
+          showToast('Downtime ended locally', 'success');
+          
+          // Try to sync with API
           try {
-            setEndingDowntime(true);
+            const endResponse = await downtimeApi.end(downtimeId, {
+              endTime: endTime,
+              notes: 'Downtime ended by operator'
+            });
             
-            // Fetch all active downtimes
-            const response = await downtimeApi.getAll();
-            
-            if (response.data.success && Array.isArray(response.data.data)) {
-              const activeDowntimes = response.data.data.filter((downtime: Downtime) => {
-                const machineId = downtime.machineId;
-                const isMatch = 
-                  (typeof machineId === 'object' && machineId?._id === id) ||
-                  machineId === id;
-                
-                return isMatch && !downtime.endTime;
-              });
-              
-              let endedCount = 0;
-              const endTime = new Date().toISOString();
-              
-              // End each downtime
-              for (const downtime of activeDowntimes) {
-                try {
-                  const downtimeId = downtime._id || downtime.id;
-                  if (downtimeId) {
-                    // Update Redux
-                    dispatch(endDowntime({
-                      id: downtimeId,
-                      endTime: endTime,
-                      notes: 'All downtimes ended by operator'
-                    }));
-                    
-                    // Call API
-                    await downtimeApi.end(downtimeId, {
-                      endTime: endTime,
-                      notes: 'All downtimes ended by operator'
-                    });
-                    
-                    endedCount++;
-                  }
-                } catch (error) {
-                  console.error(`Error ending downtime ${downtime._id}:`, error);
-                }
-              }
-              
-              // Update local state
-              setActiveDowntime(null);
-              
-              if (endedCount > 0) {
-                showToast(`Ended ${endedCount} downtime(s)`, 'success');
-              } else {
-                showToast('No downtimes to end', 'info');
-              }
-              
-              // Refresh data
-              await checkActiveDowntime();
+            if (endResponse.data.success) {
+              showToast('Downtime synced to server', 'success');
             }
-          } catch (error) {
-            console.error('Error ending all downtimes:', error);
-            showToast('Failed to end all downtimes', 'error');
-          } finally {
-            setEndingDowntime(false);
+          } catch (apiError) {
+            console.log('API sync failed (might be offline)', apiError);
           }
         }
       }
-    ]
-  );
-};
-
-  const handleViewChecklist = () => {
-    router.push({
-      pathname: '/(tabs)/maintenance',
-      params: { 
-        machineId: machine?._id || id, 
-        machineName: machine?.name 
-      }
-    });
+    } catch (error) {
+      console.error('Error fetching downtimes:', error);
+      showToast('Failed to load downtimes', 'error');
+    } finally {
+      setLoadingDowntime(false);
+    }
   };
 
-  const handleCompleteChecklistItem = (itemId: string) => {
-    setChecklistItems(prev => 
-      prev.map(item => 
-        item.id === itemId 
-          ? { ...item, status: 'completed', completedAt: new Date().toISOString() }
-          : item
-      )
-    );
-    showToast('Task marked as completed', 'success');
-  };
-
+  
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -631,168 +525,98 @@ const handleEndAllDowntimes = async () => {
       </View>
 
       {/* Downtime Management Card */}
-<View style={styles.card}>
-  <View style={styles.cardHeader}>
-    <Text style={styles.cardTitle}>Downtime</Text>
-    {activeDowntime && (
-      <View style={styles.activeDowntimeBadge}>
-        <MaterialIcons name="timer" size={14} color="#DC2626" />
-        <Text style={styles.activeDowntimeText}>ACTIVE</Text>
-      </View>
-    )}
-  </View>
-  
-  {loadingDowntime ? (
-    <View style={styles.centerLoader}>
-      <ActivityIndicator size="small" color="#007AFF" />
-      <Text style={styles.loadingText}>Checking downtime...</Text>
-    </View>
-  ) : activeDowntime ? (
-    <View style={styles.activeDowntimeContainer}>
-      <View style={styles.downtimeInfo}>
-        <View style={styles.downtimeHeader}>
-          <MaterialIcons name="timer-off" size={24} color="#DC2626" />
-          <View style={styles.downtimeDetails}>
-            <Text style={styles.downtimeReason}>
-              {activeDowntime.reasonCategory || activeDowntime.reasonCode} 
-              {activeDowntime.reasonSubCategory ? ` → ${activeDowntime.reasonSubCategory}` : ''}
-            </Text>
-            <Text style={styles.downtimeTime}>
-              Started: {formatDate(activeDowntime.startTime)}
-            </Text>
-            <Text style={styles.downtimeDuration}>
-              Duration: {calculateDowntimeDuration()}
-            </Text>
-          </View>
-        </View>
-        
-        <Text style={styles.downtimeNotes}>
-          {activeDowntime.notes || 'No additional notes'}
-        </Text>
-        
-        {/* END DOWNTIME BUTTON (shows when there IS active downtime) */}
-        <TouchableOpacity
-          style={[styles.actionButton, styles.endButton]}
-          onPress={handleEndDowntimeSimple}
-          disabled={endingDowntime}
-        >
-          {endingDowntime ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <MaterialIcons name="stop-circle" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>End Downtime</Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
-  ) : (
-    <View style={styles.noDowntimeContainer}>
-      <MaterialIcons name="timer-off" size={40} color="#9CA3AF" />
-      <Text style={styles.noDowntimeText}>No active downtime</Text>
-      <Text style={styles.noDowntimeSubtext}>
-        Start downtime to track machine stoppages
-      </Text>
-      
-      {/* BUTTONS ROW: Shows both buttons when NO active downtime */}
-      <View style={styles.buttonRow}>
-        {/* RECORD DOWNTIME BUTTON */}
-        <TouchableOpacity
-          style={[styles.actionButton, styles.startButton, styles.flexButton]}
-          onPress={handleStartDowntime}
-        >
-          <MaterialIcons name="play-arrow" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>Record Downtime</Text>
-        </TouchableOpacity>
-        
-        {/* END DOWNTIME BUTTON (for ending existing downtimes) */}
-        <TouchableOpacity
-          style={[styles.actionButton, styles.endExistingButton, styles.flexButton]}
-          onPress={handleEndExistingDowntime}
-        >
-          <MaterialIcons name="stop-circle" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>End Existing</Text>
-        </TouchableOpacity>
-      </View>
-      
-      {/* Or show a single button to end ALL downtimes */}
-      <TouchableOpacity
-        style={[styles.actionButton, styles.endAllButton]}
-        onPress={handleEndAllDowntimes}
-      >
-        <MaterialIcons name="stop" size={20} color="#fff" />
-        <Text style={styles.actionButtonText}>End All Downtimes</Text>
-      </TouchableOpacity>
-    </View>
-  )}
-</View>
-
-      {/* Maintenance Checklist Card */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Maintenance Checklist</Text>
-          <TouchableOpacity onPress={handleViewChecklist}>
-            <Text style={styles.viewAllText}>View All</Text>
-          </TouchableOpacity>
+          <Text style={styles.cardTitle}>Downtime</Text>
+          {activeDowntime && (
+            <View style={styles.activeDowntimeBadge}>
+              <MaterialIcons name="timer" size={14} color="#DC2626" />
+              <Text style={styles.activeDowntimeText}>ACTIVE</Text>
+            </View>
+          )}
         </View>
         
-        <View style={styles.checklistSummary}>
-          <View style={styles.checklistStat}>
-            <Text style={styles.checklistStatValue}>
-              {checklistItems.filter(item => item.status === 'completed').length}
-            </Text>
-            <Text style={styles.checklistStatLabel}>Completed</Text>
+        {loadingDowntime ? (
+          <View style={styles.centerLoader}>
+            <ActivityIndicator size="small" color="#007AFF" />
+            <Text style={styles.loadingText}>Checking downtime...</Text>
           </View>
-          <View style={styles.checklistStat}>
-            <Text style={styles.checklistStatValue}>
-              {checklistItems.filter(item => item.status === 'pending').length}
-            </Text>
-            <Text style={styles.checklistStatLabel}>Pending</Text>
-          </View>
-          <View style={styles.checklistStat}>
-            <Text style={[styles.checklistStatValue, styles.overdueValue]}>
-              {checklistItems.filter(item => item.status === 'overdue').length}
-            </Text>
-            <Text style={styles.checklistStatLabel}>Overdue</Text>
-          </View>
-        </View>
-        
-        <View style={styles.checklistItems}>
-          {checklistItems.slice(0, 3).map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.checklistItem}
-              onPress={() => handleCompleteChecklistItem(item.id)}
-            >
-              <View style={styles.checklistItemLeft}>
-                <MaterialIcons 
-                  name={item.status === 'completed' ? 'check-circle' : 'radio-button-unchecked'} 
-                  size={24} 
-                  color={item.status === 'completed' ? '#10B981' : 
-                         item.status === 'overdue' ? '#DC2626' : '#9CA3AF'} 
-                />
-                <View style={styles.checklistItemInfo}>
-                  <Text style={styles.checklistItemTask}>{item.task}</Text>
-                  <Text style={[
-                    styles.checklistItemDue,
-                    item.status === 'overdue' && styles.overdueText
-                  ]}>
-                    {item.due} • {item.status === 'completed' ? 'Completed' : 'Pending'}
+        ) : activeDowntime ? (
+          <View style={styles.activeDowntimeContainer}>
+            <View style={styles.downtimeInfo}>
+              <View style={styles.downtimeHeader}>
+                <MaterialIcons name="timer-off" size={24} color="#DC2626" />
+                <View style={styles.downtimeDetails}>
+                  <Text style={styles.downtimeReason}>
+                    {activeDowntime.reasonCategory || activeDowntime.reasonCode} 
+                    {activeDowntime.reasonSubCategory ? ` → ${activeDowntime.reasonSubCategory}` : ''}
+                  </Text>
+                  <Text style={styles.downtimeTime}>
+                    Started: {formatDate(activeDowntime.startTime)}
+                  </Text>
+                  <Text style={styles.downtimeDuration}>
+                    Duration: {calculateDowntimeDuration()}
                   </Text>
                 </View>
               </View>
-              <MaterialIcons name="chevron-right" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-          ))}
-        </View>
-        
-        {checklistItems.length > 3 && (
-          <TouchableOpacity style={styles.viewMoreButton} onPress={handleViewChecklist}>
-            <Text style={styles.viewMoreText}>
-              View {checklistItems.length - 3} more items
+              
+              <Text style={styles.downtimeNotes}>
+                {activeDowntime.notes || 'No additional notes'}
+              </Text>
+              
+              {/* END DOWNTIME BUTTON (shows when there IS active downtime) */}
+              <TouchableOpacity
+                style={[styles.actionButton, styles.endButton]}
+                onPress={handleEndDowntimeSimple}
+                disabled={endingDowntime}
+              >
+                {endingDowntime ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <MaterialIcons name="stop-circle" size={20} color="#fff" />
+                    <Text style={styles.actionButtonText}>End Downtime</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.noDowntimeContainer}>
+            <MaterialIcons name="timer-off" size={40} color="#9CA3AF" />
+            <Text style={styles.noDowntimeText}>No active downtime</Text>
+            <Text style={styles.noDowntimeSubtext}>
+              Start downtime to track machine stoppages
             </Text>
-          </TouchableOpacity>
+            
+            {/* BUTTONS ROW: Shows both buttons when NO active downtime */}
+            <View style={styles.buttonRow}>
+              {/* RECORD DOWNTIME BUTTON */}
+              <TouchableOpacity
+                style={[styles.actionButton, styles.startButton, styles.flexButton]}
+                onPress={handleStartDowntime}
+              >
+                <MaterialIcons name="play-arrow" size={20} color="#fff" />
+                <Text style={styles.actionButtonText}>Record Downtime</Text>
+              </TouchableOpacity>
+              
+              {/* END DOWNTIME BUTTON (for ending existing downtimes) */}
+              <TouchableOpacity
+                style={[styles.actionButton, styles.endExistingButton, styles.flexButton]}
+                onPress={handleEndExistingDowntime}
+                disabled={loadingDowntime}
+              >
+                {loadingDowntime ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <MaterialIcons name="stop-circle" size={20} color="#fff" />
+                    <Text style={styles.actionButtonText}>End Existing</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
       </View>
 
@@ -835,9 +659,7 @@ const handleEndAllDowntimes = async () => {
   );
 }
 
-// Styles remain the same as in your code
 const styles = StyleSheet.create({
-  // ... (your existing styles remain exactly the same)
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
@@ -847,6 +669,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
   header: {
     backgroundColor: '#fff',
@@ -1124,83 +951,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  // Checklist Styles
-  viewAllText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  checklistSummary: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#F9FAFB',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  checklistStat: {
-    alignItems: 'center',
-  },
-  checklistStatValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  overdueValue: {
-    color: '#DC2626',
-  },
-  checklistStatLabel: {
-    fontSize: 12,
-    color: '#666',
-  },
-  checklistItems: {
-    gap: 12,
-  },
-  checklistItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  checklistItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  checklistItemInfo: {
-    flex: 1,
-  },
-  checklistItemTask: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 2,
-  },
-  checklistItemDue: {
-    fontSize: 12,
-    color: '#666',
-  },
-  overdueText: {
-    color: '#DC2626',
-    fontWeight: '500',
-  },
-  viewMoreButton: {
-    alignItems: 'center',
-    paddingTop: 16,
-    marginTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  viewMoreText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  // Machine Info Styles
   infoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1250,15 +1000,10 @@ const styles = StyleSheet.create({
   
   flexButton: {
     flex: 1,
-    minWidth: 0, // Important for flex to work properly
+    minWidth: 0,
   },
   
   endExistingButton: {
-    backgroundColor: '#F59E0B', // Orange color
-  },
-  
-  endAllButton: {
-    backgroundColor: '#8B5CF6', // Purple color
-    marginTop: 12,
+    backgroundColor: '#F59E0B',
   },
 });

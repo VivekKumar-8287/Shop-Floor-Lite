@@ -81,7 +81,7 @@ export default function LoginScreen() {
       dispatch(setUser(userData));
 
       // Navigate to dashboard
-      router.replace('/(app)');
+      router.replace('/(tabs)');
       
     } catch (error: any) {
       console.error('Login error details:', {

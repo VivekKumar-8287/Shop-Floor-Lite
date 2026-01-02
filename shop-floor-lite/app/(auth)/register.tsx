@@ -138,7 +138,7 @@ export default function RegisterScreen() {
           text: 'Go to Dashboard', 
           onPress: () => {
             console.log('Manual navigation to app...');
-            router.replace('/(app)');
+            router.replace('/(tabs)');
           }
         }
       ]
@@ -147,7 +147,7 @@ export default function RegisterScreen() {
     // Auto-navigate after 2 seconds
     setTimeout(() => {
       console.log('Auto-navigating to app...');
-      router.replace('/(app)');
+      router.replace('/(tabs)');
     }, 2000);
     
   } catch (error: any) {

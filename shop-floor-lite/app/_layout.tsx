@@ -40,10 +40,10 @@ export default function RootLayout() {
                 }}
               />
               <Stack.Screen
-                name="start-downtime"
+                name="create-maintenance"
                 options={{
                   presentation: "modal",
-                  title: "Start Downtime",
+                  title: "Create Mainenance",
                 }}
               />
               <Stack.Screen

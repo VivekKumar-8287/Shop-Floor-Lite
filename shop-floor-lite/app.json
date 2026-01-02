@@ -19,7 +19,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.shopfloorlite"
     },
     "web": {
       "output": "static",
@@ -46,11 +50,16 @@
           "photosPermission": "Allow access to your photos"
         }
       ]
-
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d06817fa-5fca-4bb7-b9b2-ce5e677bcf1b"
+      }
     }
   }
 }

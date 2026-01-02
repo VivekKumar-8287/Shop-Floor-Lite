@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,17 +6,15 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useDispatch } from 'react-redux';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
-import { useDispatch } from 'react-redux';
 import { setUser } from '../../store/authSlice';
 import { storage } from '../../lib/storage';
 import { authApi } from '../../lib/api';
-import { WebToast } from '../../components/WebToast';
-import { useToast } from '../../hooks/useToast';
+import { useToast, useApiErrorHandler } from '../../components/ToastProvider';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -26,16 +24,16 @@ export default function LoginScreen() {
   
   const router = useRouter();
   const dispatch = useDispatch();
-  const { toasts, showToast, hideToast } = useToast();
+  const { showToast } = useToast();
+  const { handleApiError } = useApiErrorHandler();
+
+  useEffect(() => {
+    debugStorage();
+  }, []);
 
   const handleLogin = async () => {
-    // if (!email || !password) {
-    //   Alert.alert('Error', 'Please fill in all fields');
-    //   return;
-    // }
-
-     if (!email || !password) {
-      showToast('Please fill in all fields', 'error'); // Changed from Alert.alert
+    if (!email || !password) {
+      showToast('Please fill in all fields', 'error');
       return;
     }
 
@@ -43,20 +41,15 @@ export default function LoginScreen() {
     try {
       console.log('Login attempt:', { email, password, role });
 
-      // Make API call to backend
       const response = await authApi.login(email, password, role);
-      
       console.log('Login response:', response.data);
 
       if (!response.data.success) {
         throw new Error(response.data.error || response.data.message || 'Login failed');
       }
 
-      // IMPORTANT: Your backend returns data in "data" field, not "user" field
-      // Response format: {success: true, message: "...", data: {...}}
       const backendData = response.data.data || response.data.user || {};
       
-      // Create user object from backend response
       const userData = {
         id: backendData._id || backendData.id || `user-${Date.now()}`,
         email: backendData.email || email,
@@ -67,7 +60,6 @@ export default function LoginScreen() {
       
       console.log('Processed user data:', userData);
       
-      // Validate we have a token
       if (!userData.token) {
         throw new Error('No authentication token received');
       }
@@ -76,58 +68,18 @@ export default function LoginScreen() {
       await storage.setItem('token', userData.token);
       await storage.setItem('user', JSON.stringify(userData));
       
-      // Debug: verify what was saved
-      const savedToken = await storage.getItem('token');
-      const savedUser = await storage.getItem('user');
-      console.log('Saved token exists:', !!savedToken);
-      console.log('Saved user exists:', !!savedUser);
-      if (savedUser) {
-        console.log('Saved user content:', savedUser);
-      }
-
       // Update Redux state
       dispatch(setUser(userData));
 
-       // Show success message
+      // Success toast
       showToast('Login successful!', 'success');
 
       // Navigate to dashboard
-      router.replace('/(app)');
+      router.replace('/(tabs)');
       
     } catch (error: any) {
-      console.error('Login error details:', {
-        message: error.message,
-        response: error.response?.data,
-        stack: error.stack,
-      });
-
-       // Format better error message
-      let errorMessage = 'Login failed';
-      
-      if (error.response?.status === 500) {
-        errorMessage = 'Server error. Please try again later.';
-      } else if (error.response?.status === 401) {
-        errorMessage = 'Invalid email or password';
-      } else if (error.response?.status === 400) {
-        errorMessage = error.response?.data?.error || 'Invalid request';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.message.includes('Network Error')) {
-        errorMessage = 'Network error. Please check your connection.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      // Show toast instead of alert
-      showToast(errorMessage, 'error'); // Changed from Alert.alert
-      
-      
-      // Alert.alert(
-      //   'Login Failed', 
-      //   error.response?.data?.message || error.message || 'Invalid credentials'
-      // );
+      // Use the unified error handler
+      handleApiError(error, 'Login');
     } finally {
       setLoading(false);
     }
@@ -137,7 +89,6 @@ export default function LoginScreen() {
     router.push('/(auth)/register');
   };
 
-  // Debug function to check storage
   const debugStorage = async () => {
     const user = await storage.getItem('user');
     const token = await storage.getItem('token');
@@ -155,11 +106,6 @@ export default function LoginScreen() {
       }
     }
   };
-
-  // Add debug button (optional - remove later)
-  React.useEffect(() => {
-    debugStorage();
-  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -234,15 +180,6 @@ export default function LoginScreen() {
           </View>
         </View>
       </ScrollView>
-       {/* Render toasts for web -----*/}
-      {Platform.OS === 'web' && toasts.map((toast) => (
-        <WebToast
-          key={toast.id}
-          message={toast.message}
-          type={toast.type}
-          onClose={() => hideToast(toast.id)}
-        />
-      ))}
     </KeyboardAvoidingView>
   );
 }
