@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Button } from '../../components/Button';
@@ -7,49 +7,97 @@ import { useToast } from '../../components/ToastProvider';
 import { authApi } from '../../lib/api';
 import { storage } from '../../lib/storage';
 import { router } from 'expo-router';
-import { logout } from '../../store/authSlice';
+import { logout, setUser } from '../../store/authSlice';
+import { useState, useEffect } from 'react';
 
 export default function SettingsScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const dispatch = useDispatch();
   const { showToast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [userDetails, setUserDetails] = useState<any>(null);
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      setLoading(true);
+      const response = await authApi.profile();
+      
+      if (response.data.success && response.data.data?.user) {
+        const userData = response.data.data.user;
+        setUserDetails(userData);
+        
+        // Update Redux with latest user data
+        const updatedUser = {
+          ...user,
+          ...userData,
+          fullName: userData.fullName || `${userData.firstName} ${userData.lastName}`,
+          employeeId: userData.employeeId,
+          lastLogin: userData.lastLogin,
+          createdAt: userData.createdAt,
+        };
+        
+        dispatch(setUser(updatedUser));
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch user profile:', error);
+      // If profile fetch fails, use existing Redux user data
+      setUserDetails(user);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = async () => {
+  console.log('🔄 Logout button clicked');
+  
+  // For web, use window.confirm
+  if (Platform.OS === 'web') {
+    const confirmed = window.confirm('Are you sure you want to logout?');
+    if (confirmed) {
+      performLogout();
+    }
+  } else {
+    // For mobile, use Alert.alert
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Call logout API
-              await authApi.logout();
-              
-              // Clear storage
-              await storage.removeItem('token');
-              await storage.removeItem('user');
-              
-              // Clear Redux state
-              dispatch(logout());
-              
-              // Show success message
-              showToast('Logged out successfully', 'success');
-              
-              // Redirect to login page
-              router.replace('/(auth)/login');
-              
-            } catch (error: any) {
-              console.error('Logout error:', error);
-              showToast('Logout failed', 'error');
-            }
-          }
-        }
+        { text: 'Logout', style: 'destructive', onPress: performLogout }
       ]
     );
-  };
+  }
+};
+
+const performLogout = async () => {
+  try {
+    console.log('🚀 Starting logout...');
+    await authApi.logout();
+  } catch (error) {
+    console.log('⚠️ API logout failed, continuing with local logout');
+  }
+  
+  // Always do local logout
+  await storage.removeItem('token');
+  await storage.removeItem('user');
+  dispatch(logout());
+  router.replace('/(auth)/login');
+};
+
+  const displayUser = userDetails || user;
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <MaterialIcons name="person" size={40} color="#007AFF" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -60,14 +108,14 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.userInfo}>
           <Text style={styles.userName}>
-            {user?.fullName || user?.email?.split('@')[0] || 'User'}
+            {displayUser?.fullName || displayUser?.email?.split('@')[0] || 'User'}
           </Text>
           <Text style={styles.userRole}>
-            {user?.role === 'operator' ? 'Operator' : 'Supervisor'}
+            {displayUser?.role === 'operator' ? 'Operator' : 'Supervisor'}
           </Text>
-          <Text style={styles.userEmail}>{user?.email || 'No email'}</Text>
+          <Text style={styles.userEmail}>{displayUser?.email || 'No email'}</Text>
           <Text style={styles.userEmployeeId}>
-            Employee ID: {user?.employeeId || 'N/A'}
+            Employee ID: {displayUser?.employeeId || 'N/A'}
           </Text>
         </View>
       </View>
@@ -77,20 +125,20 @@ export default function SettingsScreen() {
         <View style={styles.detailRow}>
           <MaterialIcons name="badge" size={20} color="#666" />
           <Text style={styles.detailLabel}>Employee ID:</Text>
-          <Text style={styles.detailValue}>{user?.employeeId || 'N/A'}</Text>
+          <Text style={styles.detailValue}>{displayUser?.employeeId || 'N/A'}</Text>
         </View>
         
         <View style={styles.detailRow}>
           <MaterialIcons name="business" size={20} color="#666" />
           <Text style={styles.detailLabel}>Tenant ID:</Text>
-          <Text style={styles.detailValue}>{user?.tenant_id || 'N/A'}</Text>
+          <Text style={styles.detailValue}>{displayUser?.tenant_id || 'N/A'}</Text>
         </View>
         
         <View style={styles.detailRow}>
           <MaterialIcons name="calendar-today" size={20} color="#666" />
           <Text style={styles.detailLabel}>Member Since:</Text>
           <Text style={styles.detailValue}>
-            {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+            {displayUser?.createdAt ? new Date(displayUser.createdAt).toLocaleDateString() : 'N/A'}
           </Text>
         </View>
         
@@ -98,9 +146,19 @@ export default function SettingsScreen() {
           <MaterialIcons name="login" size={20} color="#666" />
           <Text style={styles.detailLabel}>Last Login:</Text>
           <Text style={styles.detailValue}>
-            {user?.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'N/A'}
+            {displayUser?.lastLogin ? new Date(displayUser.lastLogin).toLocaleString() : 'N/A'}
           </Text>
         </View>
+      </View>
+
+      {/* Refresh Button */}
+      <View style={styles.refreshSection}>
+        <Button
+          title="Refresh Profile"
+          onPress={fetchUserProfile}
+          variant="outline"
+          icon={<MaterialIcons name="refresh" size={20} color="#007AFF" />}
+        />
       </View>
 
       {/* Logout Button */}
@@ -123,6 +181,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
   userCard: {
     backgroundColor: '#fff',
@@ -205,6 +274,10 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '500',
     flex: 1,
+  },
+  refreshSection: {
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
   logoutSection: {
     margin: 16,

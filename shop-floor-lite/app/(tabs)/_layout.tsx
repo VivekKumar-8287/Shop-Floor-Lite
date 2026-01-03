@@ -1,21 +1,22 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
+import { useEffect } from 'react';
 
 export default function TabLayout() {
   const user = useSelector((state: RootState) => state.auth.user);
-  const userRole = user?.role; // Get role from Redux user
+  const userRole = user?.role;
 
-  // If no role, don't show tabs (should redirect to login)
+  // If no user role, redirect to login
   if (!userRole) {
-    return null;
+    return <Redirect href="/(auth)/login" />;
   }
 
+  // Operator tabs
   if (userRole === 'operator') {
     return (
       <Tabs screenOptions={{ headerShown: false }}>
-        {/* Operator Tabs */}
         <Tabs.Screen
           name="dashboard"
           options={{
@@ -43,16 +44,18 @@ export default function TabLayout() {
             ),
           }}
         />
-        {/* Hide supervisor tabs */}
+        {/* Hide supervisor and unused tabs */}
         <Tabs.Screen name="alerts" options={{ href: null }} />
+        <Tabs.Screen name="kpi" options={{ href: null }} />
+        <Tabs.Screen name="index" options={{ href: null }} />
       </Tabs>
     );
   }
 
+  // Supervisor tabs
   if (userRole === 'supervisor') {
     return (
       <Tabs screenOptions={{ headerShown: false }}>
-        {/* Supervisor Tabs */}
         <Tabs.Screen
           name="dashboard"
           options={{
@@ -71,12 +74,23 @@ export default function TabLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="kpi"
+          options={{
+            title: 'KPI Reports',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="analytics" size={size} color={color} />
+            ),
+          }}
+        />
         {/* Hide operator tabs */}
         <Tabs.Screen name="downtime" options={{ href: null }} />
         <Tabs.Screen name="maintenance" options={{ href: null }} />
+        <Tabs.Screen name="index" options={{ href: null }} />
       </Tabs>
     );
   }
 
-  return null;
-} 
+  // Fallback redirect
+  return <Redirect href="/(auth)/login" />;
+}
