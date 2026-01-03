@@ -1,0 +1,351 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  SafeAreaView,
+} from 'react-native';
+import {
+  testAllApis,
+  testApiConnection,
+  checkNetworkStatus,
+} from '../lib/api-debug';
+
+export default function ApiDebugScreen() {
+  const [logs, setLogs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [testResults, setTestResults] = useState<any[]>([]);
+
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 50)]);
+  };
+
+  const handleTestAllApis = async () => {
+    setLoading(true);
+    addLog('Starting comprehensive API tests...');
+    
+    try {
+      const results = await testAllApis();
+      setTestResults(results);
+      
+      const passed = results.filter(r => r.status === 'PASS').length;
+      const failed = results.filter(r => r.status === 'FAIL').length;
+      
+      addLog(`✅ Tests completed: ${passed} passed, ${failed} failed`);
+      
+      // Log failed tests
+      results.filter(r => r.status === 'FAIL').forEach(test => {
+        addLog(`❌ ${test.name}: ${test.error}`);
+      });
+      
+    } catch (error: any) {
+      addLog(`❌ Test execution error: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setLoading(true);
+    addLog('Testing API connection...');
+    await testApiConnection();
+    setLoading(false);
+  };
+
+  const handleCheckNetwork = async () => {
+    setLoading(true);
+    addLog('Checking network status...');
+    await checkNetworkStatus();
+    setLoading(false);
+  };
+
+  const clearLogs = () => {
+    setLogs([]);
+    setTestResults([]);
+    addLog('Logs cleared');
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView>
+        <View style={styles.header}>
+          <Text style={styles.title}>🔧 API Debug Console</Text>
+          <Text style={styles.subtitle}>Test all endpoints with one click</Text>
+        </View>
+
+        <View style={styles.buttonContainer}>
+          {/* MAIN TEST ALL BUTTON */}
+          <TouchableOpacity
+            style={[styles.button, styles.testAllButton]}
+            onPress={handleTestAllApis}
+            disabled={loading}>
+            <Text style={styles.buttonText}>🧪 TEST ALL APIS</Text>
+          </TouchableOpacity>
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.button, styles.connectionButton]}
+              onPress={handleTestConnection}
+              disabled={loading}>
+              <Text style={styles.buttonText}>🔌 Test Connection</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, styles.networkButton]}
+              onPress={handleCheckNetwork}
+              disabled={loading}>
+              <Text style={styles.buttonText}>📶 Check Network</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.button, styles.clearButton]}
+            onPress={clearLogs}
+            disabled={loading}>
+            <Text style={styles.buttonText}>🗑️ Clear Logs</Text>
+          </TouchableOpacity>
+        </View>
+
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Running tests...</Text>
+          </View>
+        )}
+
+        {/* Test Results Summary */}
+        {testResults.length > 0 && (
+          <View style={styles.resultsContainer}>
+            <Text style={styles.resultsTitle}>📊 Test Results</Text>
+            <View style={styles.resultsSummary}>
+              <View style={styles.resultBadge}>
+                <Text style={styles.resultBadgeText}>
+                  ✅ {testResults.filter(r => r.status === 'PASS').length} Passed
+                </Text>
+              </View>
+              <View style={[styles.resultBadge, styles.failedBadge]}>
+                <Text style={styles.resultBadgeText}>
+                  ❌ {testResults.filter(r => r.status === 'FAIL').length} Failed
+                </Text>
+              </View>
+              <View style={[styles.resultBadge, styles.skippedBadge]}>
+                <Text style={styles.resultBadgeText}>
+                  ⏭️ {testResults.filter(r => r.status === 'SKIP').length} Skipped
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Logs Container */}
+        <View style={styles.logsContainer}>
+          <View style={styles.logsHeader}>
+            <Text style={styles.logsTitle}>📋 Console Logs</Text>
+            <Text style={styles.logsCount}>{logs.length} entries</Text>
+          </View>
+          
+          {logs.length === 0 ? (
+            <Text style={styles.noLogs}>No logs yet. Run tests above.</Text>
+          ) : (
+            logs.map((log, index) => (
+              <View key={index} style={styles.logItem}>
+                <Text style={[
+                  styles.logText,
+                  log.includes('✅') && styles.successLog,
+                  log.includes('❌') && styles.errorLog,
+                  log.includes('⚠️') && styles.warningLog,
+                ]}>
+                  {log}
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+
+        <View style={styles.instructions}>
+          <Text style={styles.instructionsTitle}>💡 How to Use:</Text>
+          <Text style={styles.instruction}>1. Click "TEST ALL APIS" to test every endpoint</Text>
+          <Text style={styles.instruction}>2. Check console for detailed logs</Text>
+          <Text style={styles.instruction}>3. Look for CORS errors in browser dev tools</Text>
+          <Text style={styles.instruction}>4. Make sure backend server is running</Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    padding: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  buttonContainer: {
+    padding: 16,
+    gap: 12,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  button: {
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+  },
+  testAllButton: {
+    backgroundColor: '#5856D6',
+  },
+  connectionButton: {
+    flex: 1,
+    backgroundColor: '#007AFF',
+  },
+  networkButton: {
+    flex: 1,
+    backgroundColor: '#34C759',
+  },
+  clearButton: {
+    backgroundColor: '#FF3B30',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#666',
+  },
+  resultsContainer: {
+    margin: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  resultsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+    color: '#333',
+  },
+  resultsSummary: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  resultBadge: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  failedBadge: {
+    backgroundColor: '#FEE2E2',
+  },
+  skippedBadge: {
+    backgroundColor: '#F3F4F6',
+  },
+  resultBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  logsContainer: {
+    margin: 16,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    minHeight: 300,
+  },
+  logsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  logsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  logsCount: {
+    fontSize: 12,
+    color: '#aaa',
+    backgroundColor: '#333',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  logItem: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  logText: {
+    fontSize: 11,
+    fontFamily: 'monospace',
+    color: '#ccc',
+  },
+  successLog: {
+    color: '#34C759',
+  },
+  errorLog: {
+    color: '#FF3B30',
+  },
+  warningLog: {
+    color: '#FF9500',
+  },
+  noLogs: {
+    color: '#666',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    padding: 40,
+  },
+  instructions: {
+    margin: 16,
+    padding: 16,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+  },
+  instructionsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+    color: '#1565C0',
+  },
+  instruction: {
+    fontSize: 14,
+    color: '#1976D2',
+    marginBottom: 4,
+  },
+});

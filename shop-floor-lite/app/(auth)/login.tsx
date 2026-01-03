@@ -67,7 +67,7 @@ export default function LoginScreen() {
     if (!userData.token) {
       throw new Error('No authentication token received');
     }
-
+      
     // Save to storage
     await storage.setItem('token', userData.token);
     await storage.setItem('user', JSON.stringify(userData));

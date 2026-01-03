@@ -5,14 +5,18 @@ import { RootState } from '../../store';
 import { useEffect } from 'react';
 
 export default function TabLayout() {
-  const user = useSelector((state: RootState) => state.auth.user);
+    const user = useSelector((state: RootState) => state.auth.user);
+  const isAuthChecked = useSelector((state: RootState) => state.auth.isAuthChecked); // optional flag
   const userRole = user?.role;
 
-  // If no user role, redirect to login
+  // Wait until auth status is checked
+  if (!isAuthChecked) {
+    return null; // or a loading spinner
+  }
+
   if (!userRole) {
     return <Redirect href="/(auth)/login" />;
   }
-
   // Operator tabs
   if (userRole === 'operator') {
     return (
@@ -44,6 +48,15 @@ export default function TabLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+  name="settings"
+  options={{
+    title: 'Settings',
+    tabBarIcon: ({ color, size }) => (
+      <MaterialIcons name="settings" size={size} color={color} />
+    ),
+  }}
+/>
         {/* Hide supervisor and unused tabs */}
         <Tabs.Screen name="alerts" options={{ href: null }} />
         <Tabs.Screen name="kpi" options={{ href: null }} />
@@ -83,6 +96,22 @@ export default function TabLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+  name="settings"
+  options={{
+    title: 'Settings',
+    tabBarIcon: ({ color, size }) => (
+      <MaterialIcons name="settings" size={size} color={color} />
+    ),
+  }}
+/>
+<Tabs.Screen
+  name="debug-api"
+  options={{
+    title: 'API Debug',
+   
+  }}
+/>
         {/* Hide operator tabs */}
         <Tabs.Screen name="downtime" options={{ href: null }} />
         <Tabs.Screen name="maintenance" options={{ href: null }} />

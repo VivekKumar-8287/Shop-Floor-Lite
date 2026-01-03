@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,13 @@ import {
   ActivityIndicator,
   FlatList,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
-import { PhotoUploader } from '../../components/PhotoUploader';
+import * as ImagePicker from 'expo-image-picker';
 import { addDowntimeEntry } from '../../store/downtimeSlice';
 import { RootState } from '../../store';
 import { downtimeApi } from '../../lib/api';
@@ -50,6 +51,7 @@ export default function DowntimeScreen() {
   const [loading, setLoading] = useState(false);
   const [loadingReasons, setLoadingReasons] = useState(true);
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
+  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   
   const router = useRouter();
   const dispatch = useDispatch();
@@ -77,6 +79,13 @@ export default function DowntimeScreen() {
 
   useEffect(() => {
     loadReasons();
+    // Request camera permissions
+    (async () => {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera permission is required to take photos.');
+      }
+    })();
   }, []);
 
   const loadReasons = async () => {
@@ -120,6 +129,57 @@ export default function DowntimeScreen() {
     } finally {
       setLoadingReasons(false);
     }
+  };
+
+  // Photo functions similar to reference code
+  const pickImageAsync = async () => {
+    try {
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setPhotoUri(result.assets[0].uri);
+        showToast('Photo selected', 'success');
+        setShowPhotoOptions(true);
+      } else {
+        showToast('No photo selected', 'info');
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      showToast('Failed to pick image', 'error');
+    }
+  };
+
+  const takePhotoAsync = async () => {
+    try {
+      let result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setPhotoUri(result.assets[0].uri);
+        showToast('Photo taken', 'success');
+        setShowPhotoOptions(true);
+      } else {
+        showToast('No photo taken', 'info');
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      showToast('Failed to take photo', 'error');
+    }
+  };
+
+  const onResetPhoto = () => {
+    setPhotoUri(null);
+    setShowPhotoOptions(false);
+    showToast('Photo removed', 'info');
   };
 
   const getSelectedReasonLabel = () => {
@@ -297,11 +357,6 @@ export default function DowntimeScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleTakePhoto = (uri: string) => {
-    setPhotoUri(uri);
-    showToast('Photo captured', 'success');
   };
 
   const handleSelectMachine = (machine: Machine) => {
@@ -513,23 +568,67 @@ export default function DowntimeScreen() {
               />
             </View>
 
-            {/* Photo Upload */}
+            {/* Photo Upload Section - Similar to reference code */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Add Photo (Optional)</Text>
               <Text style={styles.photoSubtitle}>Max size: 200KB</Text>
               
-              <PhotoUploader
-                onPhotoTaken={handleTakePhoto}
-                maxSizeKB={200}
-                compressQuality={0.7}
-              />
-              
-              {photoUri && (
-                <View style={styles.photoPreview}>
-                  <MaterialIcons name="photo" size={20} color="#007AFF" />
-                  <Text style={styles.photoText}>Photo ready</Text>
-                </View>
-              )}
+              <View style={styles.photoContainer}>
+                {photoUri ? (
+                  <>
+                    {/* Photo Preview */}
+                    <View style={styles.photoPreviewCard}>
+                      <Image 
+                        source={{ uri: photoUri }} 
+                        style={styles.previewImage}
+                        resizeMode="cover"
+                      />
+                      
+                      {/* Photo Options - Like reference code */}
+                      {showPhotoOptions && (
+                        <View style={styles.photoOptionsContainer}>
+                          <View style={styles.photoOptionsRow}>
+                            <TouchableOpacity
+                              style={styles.photoOptionButton}
+                              onPress={onResetPhoto}
+                            >
+                              <MaterialIcons name="refresh" size={24} color="#007AFF" />
+                              <Text style={styles.photoOptionText}>Retake</Text>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                              style={styles.photoOptionButton}
+                              onPress={() => setShowPhotoOptions(false)}
+                            >
+                              <MaterialIcons name="close" size={24} color="#DC2626" />
+                              <Text style={styles.photoOptionText}>Remove</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  </>
+                ) : (
+                  /* Photo Selection Buttons - Like reference code */
+                  <View style={styles.photoSelectionContainer}>
+                    <TouchableOpacity
+                      style={styles.photoButton}
+                      onPress={takePhotoAsync}
+                    >
+                      <MaterialIcons name="photo-camera" size={32} color="#007AFF" />
+                      <Text style={styles.photoButtonText}>Take Photo</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={styles.photoButton}
+                      onPress={pickImageAsync}
+                    >
+                      <MaterialIcons name="photo-library" size={32} color="#007AFF" />
+                      <Text style={styles.photoButtonText}>Choose Photo</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             </View>
 
             {/* Action Buttons */}
@@ -817,19 +916,62 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 12,
   },
-  photoPreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 12,
-    gap: 8,
+  photoContainer: {
+    marginTop: 8,
   },
-  photoText: {
-    color: '#007AFF',
+  photoSelectionContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  photoButton: {
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    width: '45%',
+  },
+  photoButtonText: {
+    marginTop: 8,
     fontSize: 14,
     fontWeight: '500',
+    color: '#007AFF',
+    textAlign: 'center',
+  },
+  photoPreviewCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  previewImage: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#f0f0f0',
+  },
+  photoOptionsContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: 16,
+  },
+  photoOptionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  photoOptionButton: {
+    alignItems: 'center',
+    padding: 12,
+    flex: 1,
+  },
+  photoOptionText: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#333',
   },
   actionContainer: {
     marginTop: 8,

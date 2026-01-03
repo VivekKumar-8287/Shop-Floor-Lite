@@ -1,36 +1,34 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { User } from '../types';
-
-interface AuthState {
-  user: User | null;
-  isAuthenticated: boolean;
-  loading: boolean;
-  error: string | null;
-  userRole?: null, // 'operator' or 'supervisor'
-}
+import { AuthState, User } from '../types';
 
 const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
   loading: false,
-  userRole: null, // 'operator' or 'supervisor'
+  userRole: null,
   error: null,
+  isAuthChecked: false,
 };
+
 
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    login: (state, action) => {
+    login: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
+      state.isAuthenticated = true;
+      state.error = null;
+      state.isAuthChecked = true; // mark auth as checked
     },
-    setRole: (state, action) => {
+    setRole: (state, action: PayloadAction<'operator' | 'supervisor'>) => {
       state.userRole = action.payload;
     },
     setUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
       state.isAuthenticated = true;
       state.error = null;
+      state.isAuthChecked = true; // mark auth as checked
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
@@ -41,10 +39,15 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
+      state.userRole = null;
       state.error = null;
+      state.isAuthChecked = true; // prevent immediate redirect loop
     },
+    setAuthChecked: (state, action: PayloadAction<boolean>) => {
+  state.isAuthChecked = action.payload;
+},
   },
 });
 
-export const {login,setRole, setUser, setLoading, setError, logout } = authSlice.actions;
+export const { login, setRole, setUser, setLoading, setError, logout, setAuthChecked } = authSlice.actions;
 export default authSlice.reducer;

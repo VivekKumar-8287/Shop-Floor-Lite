@@ -45,8 +45,6 @@ export default function MaintenanceScreen() {
   const isOperator = user?.role === 'operator';
 
   // Load maintenance tasks
-  // Load maintenance tasks
-// Load maintenance tasks
 const loadTasks = async () => {
   try {
     setLoading(true);
@@ -92,7 +90,7 @@ const loadTasks = async () => {
 
   // Handle create maintenance navigation
   const handleCreateMaintenance = () => {
-    // router.push('/create-maintenance/index')
+    router.push('/create-maintenance')
   };
 
   // Handle mark as complete (operator only)

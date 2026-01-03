@@ -104,6 +104,7 @@ export default function DashboardScreen() {
   try {
     setLoadingAlerts(true);
     const response = await alertApi.getAll();
+    console.log("load alert -dashboard.tsx:",response)
     if (response.data.success && Array.isArray(response.data.data)) {
       setAlerts(response.data.data);
     }

@@ -1,66 +1,71 @@
-// features/alerts/alertSlice.js
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { Alert } from '../types';
 
-const initialState = {
+interface AlertState {
+  alerts: Alert[];
+  loading: boolean;
+}
+
+const initialState: AlertState = {
   alerts: [],
-  selectedAlert: null,
   loading: false,
-  error: null,
-  filterStatus: null,
-  filterPriority: null
 };
 
 const alertSlice = createSlice({
   name: 'alerts',
   initialState,
   reducers: {
-    setAlerts: (state, action) => {
+    setAlerts: (state, action: PayloadAction<Alert[]>) => {
       state.alerts = action.payload;
     },
-    setSelectedAlert: (state, action) => {
-      state.selectedAlert = action.payload;
+    addAlert: (state, action: PayloadAction<Alert>) => {
+      state.alerts.unshift(action.payload);
     },
-    setLoading: (state, action) => {
-      state.loading = action.payload;
-    },
-    setError: (state, action) => {
-      state.error = action.payload;
-    },
-    updateAlertStatus: (state, action) => {
-      const { alertId, status, acknowledgedBy, clearedBy, clearedAt } = action.payload;
-      const alert = state.alerts.find(a => a._id === alertId);
+    // UPDATED: Now tracks user object instead of just email
+    acknowledgeAlert: (state, action: PayloadAction<{
+      id: string; 
+      user: { _id: string; firstName: string; lastName: string; email: string; role: string }
+    }>) => {
+      const alert = state.alerts.find(a => a._id === action.payload.id || a.id === action.payload.id);
       if (alert) {
-        alert.status = status;
-        if (acknowledgedBy) {
-          alert.acknowledgedBy = acknowledgedBy;
-        }
-        if (clearedBy) {
-          alert.clearedBy = clearedBy;
-          alert.clearedAt = clearedAt;
+        // Add user to acknowledgedBy array
+        const acknowledgedByArray = Array.isArray(alert.acknowledgedBy) ? alert.acknowledgedBy : [];
+        
+        // Check if user already acknowledged
+        const alreadyAcknowledged = acknowledgedByArray.some((user: any) => 
+          (typeof user === 'object' && user._id === action.payload.user._id) ||
+          user === action.payload.user._id
+        );
+        
+        if (!alreadyAcknowledged) {
+          // Add user to array
+          alert.acknowledgedBy = [...acknowledgedByArray, action.payload.user];
+          
+          // Update status if first acknowledgment
+          if (alert.status === 'CREATED') {
+            alert.status = 'ACKNOWLEDGED';
+            alert.acknowledgedAt = new Date().toISOString();
+          }
         }
       }
     },
-    addAlert: (state, action) => {
-      state.alerts.unshift(action.payload);
+    // UPDATED: Clear alert with supervisor info
+    clearAlert: (state, action: PayloadAction<{
+      id: string;
+      user: { _id: string; firstName: string; lastName: string; email: string; role: string }
+    }>) => {
+      const alert = state.alerts.find(a => a._id === action.payload.id || a.id === action.payload.id);
+      if (alert) {
+        alert.status = 'CLEARED';
+        alert.clearedBy = action.payload.user;
+        alert.clearedAt = new Date().toISOString();
+      }
     },
-    setFilterStatus: (state, action) => {
-      state.filterStatus = action.payload;
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
     },
-    setFilterPriority: (state, action) => {
-      state.filterPriority = action.payload;
-    }
-  }
+  },
 });
 
-export const {
-  setAlerts,
-  setSelectedAlert,
-  setLoading,
-  setError,
-  updateAlertStatus,
-  addAlert,
-  setFilterStatus,
-  setFilterPriority
-} = alertSlice.actions;
-
+export const { setAlerts, addAlert, acknowledgeAlert, clearAlert, setLoading } = alertSlice.actions;
 export default alertSlice.reducer;

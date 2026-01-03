@@ -80,7 +80,6 @@ export interface CreateAlertData {
   priority?: 'LOW' | 'MEDIUM' | 'HIGH';
   // REMOVED: machineId: string;
 }
-
 export interface ChecklistItem {
   id: string;
   machineId: string;
@@ -88,4 +87,13 @@ export interface ChecklistItem {
   status: 'Due' | 'Overdue' | 'Done';
   note?: string;
   completedAt?: string;
+}
+
+export interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
+  loading: boolean;
+  error: string | null;
+  userRole?: 'operator' | 'supervisor' | null;
+  isAuthChecked: boolean; // NEW
 }
