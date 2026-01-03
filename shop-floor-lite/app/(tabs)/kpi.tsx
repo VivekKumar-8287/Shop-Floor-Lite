@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { reportApi } from '../../lib/api';
-import { useToast } from '../../components/ToastProvider';
+import { useToast, useApiErrorHandler } from '../../components/ToastProvider';
 
 interface KPIData {
   shift: {
@@ -54,27 +54,35 @@ export default function KPIScreen() {
   const [kpiData, setKpiData] = useState<KPIData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { showToast } = useToast();
+const { showToast } = useToast();
+const { handleApiError } = useApiErrorHandler();
 
-  const loadKpiData = async () => {
-    try {
-      setLoading(true);
-      const response = await reportApi.getSummary();
-      
-      if (response.data.success) {
-        console.log('KPI Data loaded:', response.data.data);
-        setKpiData(response.data.data);
-      } else {
-        showToast('Failed to load KPI data', 'error');
-      }
-    } catch (error: any) {
-      console.error('Failed to load KPI:', error);
-      showToast('Failed to load KPI data', 'error');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+
+ const loadKpiData = async () => {
+  try {
+    setLoading(true);
+
+    const response = await reportApi.getSummary();
+
+    console.log('📊 KPI API FULL RESPONSE 👉', response);
+
+    const data = response?.data?.data;
+
+    if (!data) {
+      showToast('No KPI data available', 'error');
+      return;
     }
-  };
+
+    setKpiData(data);
+  } catch (error: any) {
+    console.log('❌ KPI API ERROR 👉', error);
+    handleApiError(error); // ✅ centralized handling (401, token, etc.)
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
+
 
   const onRefresh = async () => {
     setRefreshing(true);

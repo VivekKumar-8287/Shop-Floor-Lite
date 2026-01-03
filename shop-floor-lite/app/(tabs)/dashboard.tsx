@@ -160,20 +160,15 @@ export default function DashboardScreen() {
     setRefreshing(false);
   };
 
-  const handleMachinePress = (machine: any) => {
-    if (user?.role === "operator") {
-      router.push({
-        pathname: `/machine-detail/${machine.id}`,
-        params: { id: machine.id, name: machine.name },
-      });
-    } else {
-      // Supervisor view - maybe show machine details or alerts
-      router.push({
-        pathname: "/(tabs)/alerts",
-        params: { machineId: machine.id },
-      });
-    }
-  };
+const handleMachinePress = (machine: any) => {
+  router.push({
+    pathname: `/machine-detail/${machine.id}`,
+    params: {
+      id: machine.id,
+      name: machine.name,
+    },
+  });
+};
 
   
   if (loading && !refreshing) {

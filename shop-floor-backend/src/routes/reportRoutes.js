@@ -27,17 +27,30 @@ router.get('/summary', protect, async (req, res) => {
     // Running machines
     const runningMachines = await Machine.countDocuments({
       tenant_id: req.user.tenant_id,
-      status: 'RUN'
+     status: { $in: ['RUN', 'RUNNING'] }
     });
 
     // Downtime in current shift
-    const downtimeEvents = await DowntimeEvent.find({
-      tenant_id: req.user.tenant_id,
-      startTime: { $gte: shiftStart, $lte: shiftEnd }
-    });
+    const rangeStart = new Date();
+rangeStart.setHours(rangeStart.getHours() - 24);
 
-    const totalDowntime = downtimeEvents.reduce((sum, event) => sum + (event.duration || 0), 0);
-    const downtimeCount = downtimeEvents.length;
+const downtimeEvents = await DowntimeEvent.find({
+  tenant_id: req.user.tenant_id,
+  startTime: { $gte: rangeStart }
+});
+
+ const totalDowntime = downtimeEvents.reduce((sum, event) => {
+  if (event.duration && event.duration > 0) return sum + event.duration;
+
+  if (event.startTime && event.endTime) {
+    return sum + Math.ceil(
+      (new Date(event.endTime) - new Date(event.startTime)) / 60000
+    );
+  }
+
+  return sum;
+}, 0);
+
 
     // Maintenance status
     const overdueTasks = await MaintenanceTask.countDocuments({
@@ -75,7 +88,7 @@ router.get('/summary', protect, async (req, res) => {
           totalMachines,
           runningMachines,
           idleMachines: await Machine.countDocuments({ tenant_id: req.user.tenant_id, status: 'IDLE' }),
-          downMachines: await Machine.countDocuments({ tenant_id: req.user.tenant_id, status: 'OFF' }),
+          downMachines: await Machine.countDocuments({ tenant_id: req.user.tenant_id, status: { $in: ['OFF', 'ERROR', 'MAINTENANCE'] } }),
           
           // Performance metrics
           availability: Math.round(availability),
@@ -123,7 +136,9 @@ async function getTopDowntimeReasons(tenantId, startDate, endDate) {
       $group: {
         _id: { category: '$reasonCategory', subCategory: '$reasonSubCategory' },
         count: { $sum: 1 },
-        totalDuration: { $sum: '$duration' }
+        totalDuration: {
+  $sum: { $ifNull: ['$duration', 0] }
+}
       }
     },
     { $sort: { count: -1 } },

@@ -52,6 +52,19 @@ router.post('/start', protect, requireRole(['operator']), async (req, res) => {
       });
     }
 
+    const existingDowntime = await DowntimeEvent.findOne({
+  machineId,
+  tenant_id: req.user.tenant_id,
+  endTime: null // only active downtimes
+});
+
+if (existingDowntime) {
+  return res.status(400).json({
+    success: false,
+    error: 'This machine already has an active downtime'
+  });
+}
+
     // Create downtime event
     const downtime = new DowntimeEvent({
       machineId,

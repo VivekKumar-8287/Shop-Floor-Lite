@@ -163,6 +163,7 @@ export default function MachineDetail() {
   useEffect(() => {
     if (id) {
       loadMachine();
+    checkActiveDowntime(); 
     }
   }, [id, loadMachine]);
 
@@ -215,66 +216,71 @@ export default function MachineDetail() {
   };
 
   // FIXED: End downtime function without Alert.alert
-  const handleEndDowntimeSimple = async () => {
-    if (!activeDowntime) {
-      showToast('No active downtime found', 'error');
-      return;
+const handleEndDowntimeSimple = async () => {
+  if (!activeDowntime) {
+    showToast('No active downtime found', 'error');
+    return;
+  }
+
+  // Check if user is operator
+  if (user?.role !== 'operator') {
+    showToast('Only operators can end a downtime', 'error');
+    return; // Stop here, don't try API call
+  }
+
+  try {
+    setEndingDowntime(true);
+
+    const downtimeId = activeDowntime._id || activeDowntime.id;
+    if (!downtimeId) {
+      throw new Error('No downtime ID found');
     }
 
+    const endTime = new Date().toISOString();
+
+    // 1. Update Redux store immediately
+    dispatch(endDowntime({
+      id: downtimeId,
+      endTime: endTime,
+      notes: 'Downtime ended by operator',
+    }));
+
+    // 2. Update local state immediately
+    setActiveDowntime(null);
+    showToast('Downtime ended locally', 'success');
+
+    // 3. Try to sync with API (online)
     try {
-      setEndingDowntime(true);
-      
-      // Get the correct downtime ID
-      const downtimeId = activeDowntime._id || activeDowntime.id;
-      console.log('🛑 Ending downtime with ID:', downtimeId);
-      
-      if (!downtimeId) {
-        throw new Error('No downtime ID found');
+      const response = await downtimeApi.end(downtimeId, {
+        endTime,
+        notes: 'Downtime ended by operator',
+      });
+
+      if (response.data.success) {
+        showToast('Downtime synced to server', 'success');
+      } else {
+        showToast('Failed to sync downtime to server', 'error');
       }
-      
-      const endTime = new Date().toISOString();
-      
-      // 1. Update Redux store
-      console.log('🔄 Dispatching to Redux...');
-      dispatch(endDowntime({
-        id: downtimeId,
-        endTime: endTime,
-        notes: 'Downtime ended by operator'
-      }));
-      
-      // 2. Update local state immediately
-      setActiveDowntime(null);
-      showToast('Downtime ended locally', 'success');
-      
-      // 3. Try to sync with API (online)
-      console.log('🌐 Attempting API sync...');
-      try {
-        const response = await downtimeApi.end(downtimeId, {
-          endTime: endTime,
-          notes: 'Downtime ended by operator'
-        });
-        
-        if (response.data.success) {
-          console.log('✅ API sync successful');
-          showToast('Downtime synced to server', 'success');
-        } else {
-          console.log('⚠️ API response not successful');
-          // Don't show error - offline sync will handle it
-        }
-      } catch (apiError) {
+    } catch (apiError: any) {
+      // If API fails due to 403, show toast
+      if (apiError?.response?.status === 403) {
+        showToast('Only operators can end a downtime', 'error');
+      } else {
         console.log('🌐 API call failed (might be offline)', apiError);
-        // This is okay - offline sync will handle it
+        showToast('Failed to sync downtime to server', 'error');
       }
-      
-    } catch (error: any) {
-      console.error('❌ Error ending downtime:', error);
-      showToast('Error ending downtime: ' + error.message, 'error');
-      // Reload downtime state to ensure consistency
-      checkActiveDowntime();
-    } finally {
-      setEndingDowntime(false);
     }
-  };
+
+  } catch (error: any) {
+    console.error('❌ Error ending downtime:', error);
+    showToast('Error ending downtime: ' + error.message, 'error');
+    // Reload downtime state to ensure consistency
+    checkActiveDowntime();
+  } finally {
+    setEndingDowntime(false);
+  }
+};
+
 
   // Function to end an existing downtime (from API)
   const handleEndExistingDowntime = async () => {
@@ -524,101 +530,87 @@ export default function MachineDetail() {
         </View>
       </View>
 
-      {/* Downtime Management Card */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Downtime</Text>
-          {activeDowntime && (
-            <View style={styles.activeDowntimeBadge}>
-              <MaterialIcons name="timer" size={14} color="#DC2626" />
-              <Text style={styles.activeDowntimeText}>ACTIVE</Text>
-            </View>
-          )}
-        </View>
-        
-        {loadingDowntime ? (
-          <View style={styles.centerLoader}>
-            <ActivityIndicator size="small" color="#007AFF" />
-            <Text style={styles.loadingText}>Checking downtime...</Text>
-          </View>
-        ) : activeDowntime ? (
-          <View style={styles.activeDowntimeContainer}>
-            <View style={styles.downtimeInfo}>
-              <View style={styles.downtimeHeader}>
-                <MaterialIcons name="timer-off" size={24} color="#DC2626" />
-                <View style={styles.downtimeDetails}>
-                  <Text style={styles.downtimeReason}>
-                    {activeDowntime.reasonCategory || activeDowntime.reasonCode} 
-                    {activeDowntime.reasonSubCategory ? ` → ${activeDowntime.reasonSubCategory}` : ''}
-                  </Text>
-                  <Text style={styles.downtimeTime}>
-                    Started: {formatDate(activeDowntime.startTime)}
-                  </Text>
-                  <Text style={styles.downtimeDuration}>
-                    Duration: {calculateDowntimeDuration()}
-                  </Text>
-                </View>
-              </View>
-              
-              <Text style={styles.downtimeNotes}>
-                {activeDowntime.notes || 'No additional notes'}
-              </Text>
-              
-              {/* END DOWNTIME BUTTON (shows when there IS active downtime) */}
-              <TouchableOpacity
-                style={[styles.actionButton, styles.endButton]}
-                onPress={handleEndDowntimeSimple}
-                disabled={endingDowntime}
-              >
-                {endingDowntime ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <MaterialIcons name="stop-circle" size={20} color="#fff" />
-                    <Text style={styles.actionButtonText}>End Downtime</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.noDowntimeContainer}>
-            <MaterialIcons name="timer-off" size={40} color="#9CA3AF" />
-            <Text style={styles.noDowntimeText}>No active downtime</Text>
-            <Text style={styles.noDowntimeSubtext}>
-              Start downtime to track machine stoppages
-            </Text>
-            
-            {/* BUTTONS ROW: Shows both buttons when NO active downtime */}
-            <View style={styles.buttonRow}>
-              {/* RECORD DOWNTIME BUTTON */}
-              <TouchableOpacity
-                style={[styles.actionButton, styles.startButton, styles.flexButton]}
-                onPress={handleStartDowntime}
-              >
-                <MaterialIcons name="play-arrow" size={20} color="#fff" />
-                <Text style={styles.actionButtonText}>Record Downtime</Text>
-              </TouchableOpacity>
-              
-              {/* END DOWNTIME BUTTON (for ending existing downtimes) */}
-              <TouchableOpacity
-                style={[styles.actionButton, styles.endExistingButton, styles.flexButton]}
-                onPress={handleEndExistingDowntime}
-                disabled={loadingDowntime}
-              >
-                {loadingDowntime ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <MaterialIcons name="stop-circle" size={20} color="#fff" />
-                    <Text style={styles.actionButtonText}>End Existing</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+    {/* Downtime Management Card */}
+<View style={styles.card}>
+  <View style={styles.cardHeader}>
+    <Text style={styles.cardTitle}>Downtime</Text>
+    {activeDowntime && (
+      <View style={styles.activeDowntimeBadge}>
+        <MaterialIcons name="timer" size={14} color="#DC2626" />
+        <Text style={styles.activeDowntimeText}>ACTIVE</Text>
       </View>
+    )}
+  </View>
+
+  {loadingDowntime ? (
+    <View style={styles.centerLoader}>
+      <ActivityIndicator size="small" color="#007AFF" />
+      <Text style={styles.loadingText}>Checking downtime...</Text>
+    </View>
+  ) : activeDowntime ? (
+    <View style={styles.activeDowntimeContainer}>
+      <View style={styles.downtimeInfo}>
+        <View style={styles.downtimeHeader}>
+          <MaterialIcons name="timer-off" size={24} color="#DC2626" />
+          <View style={styles.downtimeDetails}>
+            <Text style={styles.downtimeReason}>
+              {activeDowntime.reasonCategory || activeDowntime.reasonCode} 
+              {activeDowntime.reasonSubCategory ? ` → ${activeDowntime.reasonSubCategory}` : ''}
+            </Text>
+            <Text style={styles.downtimeTime}>
+              Started: {formatDate(activeDowntime.startTime)}
+            </Text>
+            <Text style={styles.downtimeDuration}>
+              Duration: {calculateDowntimeDuration()}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.downtimeNotes}>
+          {activeDowntime.notes || 'No additional notes'}
+        </Text>
+
+        {/* ONLY END DOWNTIME BUTTON */}
+        <TouchableOpacity
+          style={[styles.actionButton, styles.endButton]}
+          onPress={async () => {
+            await handleEndDowntimeSimple();
+            // Refresh downtime state after ending
+            checkActiveDowntime();
+          }}
+          disabled={endingDowntime}
+        >
+          {endingDowntime ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <MaterialIcons name="stop-circle" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>End Downtime</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  ) : (
+    <View style={styles.noDowntimeContainer}>
+      <MaterialIcons name="timer-off" size={40} color="#9CA3AF" />
+      <Text style={styles.noDowntimeText}>No active downtime</Text>
+      <Text style={styles.noDowntimeSubtext}>
+        Start downtime to track machine stoppages
+      </Text>
+
+      {/* ONLY RECORD DOWNTIME BUTTON */}
+      <TouchableOpacity
+        style={[styles.actionButton, styles.startButton, styles.flexButton]}
+        onPress={handleStartDowntime}
+      >
+        <MaterialIcons name="play-arrow" size={20} color="#fff" />
+        <Text style={styles.actionButtonText}>Record Downtime</Text>
+      </TouchableOpacity>
+    </View>
+  )}
+</View>
+
 
       {/* Machine Information Card */}
       <View style={styles.card}>
