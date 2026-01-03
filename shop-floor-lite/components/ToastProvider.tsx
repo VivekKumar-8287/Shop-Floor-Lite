@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
-
+import { Toast } from './Toast';
 
 interface ToastItem {
   id: string;

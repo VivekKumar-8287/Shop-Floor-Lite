@@ -18,60 +18,39 @@ export const useAuth = () => {
     checkAuth();
   }, []);
 
-  const checkAuth = async () => {
+const checkAuth = async () => {
   try {
+    console.log('🔐 Starting auth check...');
+    
     const userStr = await storage.getItem('user');
     const token = await storage.getItem('token');
     
-    console.log('Auth check - Platform:', Platform.OS);
-    console.log('Auth check - User from storage:', userStr ? 'Exists' : 'Null');
-    console.log('Auth check - Token from storage:', token ? 'Exists' : 'Null');
+    console.log('📦 Storage check - User:', userStr ? 'Exists' : 'Null');
+    console.log('📦 Storage check - Token:', token ? 'Exists' : 'Null');
     
     if (userStr && token) {
       try {
         const user = JSON.parse(userStr);
-        console.log('Auth check - Parsed user:', user);
+        console.log('✅ Parsed user:', user.email, user.role);
         
         // Update Redux state
         dispatch(setUser(user));
       } catch (parseError) {
-        console.error('Failed to parse user JSON:', parseError);
+        console.error('❌ Failed to parse user JSON:', parseError);
         // Clear invalid data
         await storage.removeItem('user');
         await storage.removeItem('token');
       }
+    } else {
+      console.log('⚠️ No user/token found, user is not authenticated');
     }
   } catch (error) {
-    console.error('Auth check failed:', error);
-    // Don't crash the app - just continue
+    console.error('❌ Auth check failed:', error);
   } finally {
+    console.log('🏁 Auth check completed, setting isLoading false');
     setIsLoading(false);
   }
 };
-
-  // REMOVE this mock login function - use real API in your login screen
-  // const login = async (email: string, role: 'operator' | 'supervisor') => {
-  //   setIsLoading(true);
-  //   try {
-  //     const mockUser = {
-  //       id: `user-${Date.now()}`,
-  //       email,
-  //       role,
-  //       tenant_id: 'tenant-001',
-  //       token: `mock-jwt-${Date.now()}`
-  //     };
-
-  //     await storage.setItem('user', JSON.stringify(mockUser));
-  //     await storage.setItem('token', mockUser.token);
-      
-  //     dispatch(setUser(mockUser));
-  //     return mockUser;
-  //   } catch (error) {
-  //     throw error;
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
 
   const signOut = async () => {
   try {

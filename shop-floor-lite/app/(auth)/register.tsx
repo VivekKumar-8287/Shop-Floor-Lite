@@ -147,7 +147,7 @@ export default function RegisterScreen() {
     // Auto-navigate after 2 seconds
     setTimeout(() => {
       console.log('Auto-navigating to app...');
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/dashboard');
     }, 2000);
     
   } catch (error: any) {

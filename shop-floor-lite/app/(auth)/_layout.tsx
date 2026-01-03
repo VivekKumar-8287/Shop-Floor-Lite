@@ -2,6 +2,8 @@ import { Stack } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
 
 export default function AuthLayout() {
+  console.log('🎬 RootLayout mounting');
+
       const theme = useTheme();
   
   return (

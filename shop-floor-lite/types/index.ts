@@ -55,14 +55,30 @@ export interface DowntimeEntry {
   pendingPhoto?: string;
 }
 
+// types.ts
 export interface Alert {
-  id: string;
+  _id: string;
+  id?: string; // For compatibility
   title: string;
-  message: string;
-  status: 'Created' | 'Acknowledged' | 'Cleared';
-  acknowledgedBy?: string;
+  description?: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: 'CREATED' | 'ACKNOWLEDGED' | 'CLEARED';
+  // REMOVED: machineId?: string | { _id: string; name: string; code: string };
+  createdBy: User | string;
+  acknowledgedBy: User[] | string[];
   acknowledgedAt?: string;
+  clearedBy?: User | string;
+  clearedAt?: string;
+  tenant_id: string;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAlertData {
+  title: string;
+  description?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  // REMOVED: machineId: string;
 }
 
 export interface ChecklistItem {

@@ -1,18 +1,25 @@
-import { Tabs } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useSelector } from "react-redux";
+import { Tabs } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
 
 export default function TabLayout() {
-  const { userRole } = useSelector((state: any) => state.auth);
+  const user = useSelector((state: RootState) => state.auth.user);
+  const userRole = user?.role; // Get role from Redux user
 
-  if (userRole === "operator") {
+  // If no role, don't show tabs (should redirect to login)
+  if (!userRole) {
+    return null;
+  }
+
+  if (userRole === 'operator') {
     return (
       <Tabs screenOptions={{ headerShown: false }}>
         {/* Operator Tabs */}
         <Tabs.Screen
           name="dashboard"
           options={{
-            title: "Dashboard",
+            title: 'Dashboard',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="dashboard" size={size} color={color} />
             ),
@@ -21,7 +28,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="downtime"
           options={{
-            title: "Downtime",
+            title: 'Downtime',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="timer-off" size={size} color={color} />
             ),
@@ -30,36 +37,26 @@ export default function TabLayout() {
         <Tabs.Screen
           name="maintenance"
           options={{
-            title: "Maintenance",
+            title: 'Maintenance',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="checklist" size={size} color={color} />
             ),
           }}
         />
-        <Tabs.Screen
-          name="settings"
-          options={{
-            title: "Settings",
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="settings" size={size} color={color} />
-            ),
-          }}
-        />
         {/* Hide supervisor tabs */}
         <Tabs.Screen name="alerts" options={{ href: null }} />
-        <Tabs.Screen name="kpi" options={{ href: null }} />
       </Tabs>
     );
   }
 
-  if (userRole === "supervisor") {
+  if (userRole === 'supervisor') {
     return (
       <Tabs screenOptions={{ headerShown: false }}>
         {/* Supervisor Tabs */}
         <Tabs.Screen
           name="dashboard"
           options={{
-            title: "Dashboard",
+            title: 'Dashboard',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="dashboard" size={size} color={color} />
             ),
@@ -68,27 +65,9 @@ export default function TabLayout() {
         <Tabs.Screen
           name="alerts"
           options={{
-            title: "Alerts",
+            title: 'Alerts',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="notifications" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="kpi"
-          options={{
-            title: "KPI Reports",
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="analytics" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="settings"
-          options={{
-            title: "Settings",
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="settings" size={size} color={color} />
             ),
           }}
         />
@@ -99,5 +78,5 @@ export default function TabLayout() {
     );
   }
 
-  return null; // or loading screen
-}
+  return null;
+} 

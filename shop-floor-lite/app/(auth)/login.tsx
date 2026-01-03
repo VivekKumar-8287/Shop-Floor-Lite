@@ -14,7 +14,8 @@ import { Button } from '../../components/Button';
 import { setUser } from '../../store/authSlice';
 import { storage } from '../../lib/storage';
 import { authApi } from '../../lib/api';
-import { useToast, useApiErrorHandler } from '../../components/ToastProvider';
+import { useToast } from '../../components/ToastProvider';
+import { setRole } from '../../store/authSlice';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -25,65 +26,67 @@ export default function LoginScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const { showToast } = useToast();
-  const { handleApiError } = useApiErrorHandler();
 
   useEffect(() => {
     debugStorage();
   }, []);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      showToast('Please fill in all fields', 'error');
-      return;
+  if (!email || !password) {
+    showToast('Please fill in all fields', 'error');
+    return;
+  }
+
+  setLoading(true);
+  try {
+    console.log('Login attempt:', { email, password, role });
+
+    // Make API call to backend
+    const response = await authApi.login(email, password, role);
+    
+    console.log('Login response:', response.data);
+
+    if (!response.data.success) {
+      throw new Error(response.data.error || response.data.message || 'Login failed');
     }
 
-    setLoading(true);
-    try {
-      console.log('Login attempt:', { email, password, role });
-
-      const response = await authApi.login(email, password, role);
-      console.log('Login response:', response.data);
-
-      if (!response.data.success) {
-        throw new Error(response.data.error || response.data.message || 'Login failed');
-      }
-
-      const backendData = response.data.data || response.data.user || {};
-      
-      const userData = {
-        id: backendData._id || backendData.id || `user-${Date.now()}`,
-        email: backendData.email || email,
-        role: backendData.role || role,
-        tenant_id: backendData.tenant_id || 'tenant-001',
-        token: backendData.token || response.data.token,
-      };
-      
-      console.log('Processed user data:', userData);
-      
-      if (!userData.token) {
-        throw new Error('No authentication token received');
-      }
-
-      // Save to storage
-      await storage.setItem('token', userData.token);
-      await storage.setItem('user', JSON.stringify(userData));
-      
-      // Update Redux state
-      dispatch(setUser(userData));
-
-      // Success toast
-      showToast('Login successful!', 'success');
-
-      // Navigate to dashboard
-      router.replace('/(tabs)');
-      
-    } catch (error: any) {
-      // Use the unified error handler
-      handleApiError(error, 'Login');
-    } finally {
-      setLoading(false);
+    const backendData = response.data.data || response.data.user || {};
+    
+    // Create user object from backend response
+    const userData = {
+      id: backendData._id || backendData.id || `user-${Date.now()}`,
+      email: backendData.email || email,
+      role: backendData.role || role,
+      tenant_id: backendData.tenant_id || 'tenant-001',
+      token: backendData.token || response.data.token,
+    };
+    
+    console.log('Processed user data:', userData);
+    
+    // Validate we have a token
+    if (!userData.token) {
+      throw new Error('No authentication token received');
     }
-  };
+
+    // Save to storage
+    await storage.setItem('token', userData.token);
+    await storage.setItem('user', JSON.stringify(userData));
+    
+    // Update Redux state
+    dispatch(setUser(userData));
+
+    // Show success message
+    showToast('Login successful!', 'success');
+
+    // ✅ FIXED: Navigate to tabs instead of /(app)
+    router.replace('/(tabs)');
+    
+  } catch (error: any) {
+    // ... (keep your error handling code as is)
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleRegister = () => {
     router.push('/(auth)/register');
@@ -109,7 +112,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>

@@ -25,8 +25,8 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>
-        <QueryClientProvider client={queryClient}>
           <ToastProvider>
+        <QueryClientProvider client={queryClient}>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(tabs)" />
@@ -40,22 +40,22 @@ export default function RootLayout() {
                 }}
               />
               <Stack.Screen
-                name="create-maintenance"
+                name="create-maintenance/index"
                 options={{
                   presentation: "modal",
                   title: "Create Mainenance",
                 }}
               />
               <Stack.Screen
-                name="create-alert"
+                name="create-alert/index"
                 options={{
                   presentation: "modal",
                   title: "Create Alert",
                 }}
               />
             </Stack>
-          </ToastProvider>
         </QueryClientProvider>
+          </ToastProvider>
       </Provider>
     </GestureHandlerRootView>
   );

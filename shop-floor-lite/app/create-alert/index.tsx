@@ -1,187 +1,52 @@
-import React, { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
-  Alert as RNAlert,
-  RefreshControl,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useSelector, useDispatch } from 'react-redux';
-import { MaterialIcons } from '@expo/vector-icons';
-import { RootState, AppDispatch } from '../../store';
+import { useSelector } from 'react-redux';
 import { useToast } from '../../components/ToastProvider';
 import { alertApi } from '../../lib/api';
-import { router } from 'expo-router';
-import { clearAlert } from '../../store/alertSlice';
+import { RootState } from '../../store';
 
-interface Alert {
-  _id: string;
-  title: string;
-  description: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
-  status: 'CREATED' | 'ACKNOWLEDGED' | 'CLEARED';
-  machineId: string | { _id: string; name: string; code: string };
-  createdBy: string | { _id: string; email: string; firstName?: string; lastName?: string };
-  acknowledgedBy?: (string | { _id: string; email: string; firstName?: string; lastName?: string })[];
-  clearedBy?: string | { _id: string; email: string; firstName?: string; lastName?: string };
-  createdAt: string;
-  acknowledgedAt?: string;
-  clearedAt?: string;
-}
-
-export default function AlertScreen() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'ALL' | 'CREATED' | 'ACKNOWLEDGED' | 'CLEARED'>('ALL');
-  
-  const user = useSelector((state: RootState) => state.auth.user);
+export default function CreateAlertScreen() {
+  const router = useRouter();
   const { showToast } = useToast();
-  const dispatch = useDispatch<AppDispatch>();
+  const user = useSelector((state: RootState) => state.auth.user);
+  
+  // Form state - REMOVED: selectedMachineId
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('MEDIUM');
+  
+  // Loading state
+  const [submitting, setSubmitting] = useState(false);
 
-  const isSupervisor = user?.role === 'supervisor';
-  const isOperator = user?.role === 'operator';
-
-  // Load alerts
-  const loadAlerts = async () => {
-    try {
-      setLoading(true);
-      const response = await alertApi.getAll();
-      
-      if (response.data.success && Array.isArray(response.data.data)) {
-        setAlerts(response.data.data);
-      } else {
-        setAlerts([]);
-      }
-    } catch (error: any) {
-      console.error('Failed to load alerts:', error);
-      showToast('Failed to load alerts', 'error');
-      setAlerts([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  // Validate form - REMOVED: machineId validation
+  const validateForm = () => {
+    if (!title.trim()) {
+      showToast('Alert title is required', 'error');
+      return false;
     }
-  };
-
-  useEffect(() => {
-    loadAlerts();
-  }, []);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadAlerts();
-  };
-
-  // Handle create alert navigation
-  const handleCreateAlert = () => {
-    router.push('/create-alert');
-  };
-
-  // Handle simulate alert (for testing)
-  const handleSimulateAlert = async () => {
-    try {
-      const response = await alertApi.simulate();
-      if (response.data.success) {
-        showToast('Test alert created', 'success');
-        loadAlerts();
-      }
-    } catch (error) {
-      showToast('Failed to simulate alert', 'error');
+    
+    if (title.length < 3) {
+      showToast('Title must be at least 3 characters', 'error');
+      return false;
     }
-  };
-
-  // Handle acknowledge (both operator and supervisor)
-  const handleAcknowledge = async (alertId: string) => {
-    RNAlert.alert(
-      'Acknowledge Alert',
-      'Are you sure you want to acknowledge this alert?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Acknowledge', 
-          onPress: async () => {
-            try {
-              setActionLoading(alertId);
-              const response = await alertApi.acknowledge(alertId, {
-                notes: `Acknowledged by ${user?.role}`
-              });
-              
-              if (response.data.success) {
-                showToast('Alert acknowledged', 'success');
-                await loadAlerts(); // Refresh list
-              }
-            } catch (error: any) {
-              showToast(error.response?.data?.error || 'Failed to acknowledge', 'error');
-            } finally {
-              setActionLoading(null);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // Handle clear (supervisor only)
-  const handleClearAlert = async (alertId: string) => {
-    RNAlert.alert(
-      'Clear Alert',
-      'Mark this alert as resolved? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Clear Alert', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setActionLoading(alertId);
-              const response = await alertApi.clear(alertId, {
-                notes: 'Issue resolved and cleared'
-              });
-              
-              if (response.data.success) {
-                // Update Redux
-                dispatch(clearAlert({
-                  id: alertId,
-                  user: {
-                    _id: user?._id || '',
-                    firstName: user?.firstName || '',
-                    lastName: user?.lastName || '',
-                    email: user?.email || '',
-                    role: user?.role || 'supervisor'
-                  }
-                }));
-                
-                showToast('Alert cleared successfully', 'success');
-                await loadAlerts(); // Refresh list
-              }
-            } catch (error: any) {
-              showToast(error.response?.data?.error || 'Failed to clear alert', 'error');
-            } finally {
-              setActionLoading(null);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // Get status color
-  const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'CREATED': return '#F59E0B';
-      case 'ACKNOWLEDGED': return '#3B82F6';
-      case 'CLEARED': return '#10B981';
-      default: return '#6B7280';
-    }
+    
+    return true;
   };
 
   // Get priority color
-  const getPriorityColor = (priority: string) => {
-    switch(priority) {
+  const getPriorityColor = (p: string) => {
+    switch (p) {
       case 'HIGH': return '#DC2626';
       case 'MEDIUM': return '#F59E0B';
       case 'LOW': return '#10B981';
@@ -189,255 +54,244 @@ export default function AlertScreen() {
     }
   };
 
-  // Format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  // Get machine name
-  const getMachineName = (machineId: any) => {
-    if (typeof machineId === 'object' && machineId.name) {
-      return machineId.name;
-    }
-    return 'Unknown Machine';
-  };
-
-  // Get created by email
-  const getCreatedByEmail = (createdBy: any) => {
-    if (typeof createdBy === 'object' && createdBy.email) {
-      return createdBy.email;
-    }
-    return createdBy || 'Unknown';
-  };
-
-  // Filter alerts based on selected filter
-  const getFilteredAlerts = () => {
-    if (filter === 'ALL') return alerts;
-    return alerts.filter(alert => alert.status === filter);
-  };
-
-  const filteredAlerts = getFilteredAlerts();
-
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading alerts...</Text>
-      </View>
+  // Submit alert
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+    
+    Alert.alert(
+      'Create Alert',
+      `Are you sure you want to create this alert?\n\n` +
+      `Title: ${title}\n` +
+      `Priority: ${priority}\n\n` +
+      `This will notify all supervisors.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Create Alert',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSubmitting(true);
+              
+              // Prepare data for alertApi.create - REMOVED: machineId
+              const alertData = {
+                title: title.trim(),
+                description: description.trim() || undefined,
+                priority,
+              };
+              
+              console.log('🚀 Creating alert with data:', alertData);
+              
+              // Call the API
+              const response = await alertApi.create(alertData);
+              console.log('📦 Alert creation response:', response.data);
+              
+              if (response.data.success) {
+                showToast('Alert created successfully!', 'success');
+                
+                // Clear form
+                setTitle('');
+                setDescription('');
+                setPriority('MEDIUM');
+                
+                // Navigate back after success
+                // setTimeout(() => {
+                //   router.push('/(tabs)/alerts'); // Go to alerts list
+                // }, 1500);
+                router.push('/(tabs)/alerts'); 
+              } else {
+                throw new Error(response.data.error || 'Failed to create alert');
+              }
+            } catch (error: any) {
+              console.error('❌ Error creating alert:', error);
+              
+              // Handle specific error cases
+              if (error.response?.status === 400) {
+                showToast('Invalid data. Please check your inputs.', 'error');
+              } else if (error.response?.status === 401) {
+                showToast('Please login again', 'error');
+              } else {
+                showToast(
+                  error.response?.data?.error || 
+                  error.message || 
+                  'Failed to create alert. Please try again.',
+                  'error'
+                );
+              }
+            } finally {
+              setSubmitting(false);
+            }
+          },
+        },
+      ]
     );
-  }
+  };
 
   return (
-    <View style={styles.container}>
-      {/* Header with Create Alert button for both roles */}
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+      {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Alerts</Text>
-          <Text style={styles.headerSubtitle}>
-            {isOperator ? 'View and acknowledge alerts' : 'Manage all alerts'}
-          </Text>
-        </View>
-        
-        {/* Both roles can create alerts */}
-        <View style={styles.headerButtons}>
-          {isSupervisor && (
-            <TouchableOpacity
-              style={[styles.headerButton, styles.simulateButton]}
-              onPress={handleSimulateAlert}
-            >
-              <MaterialIcons name="play-arrow" size={18} color="#fff" />
-              <Text style={styles.headerButtonText}>Simulate</Text>
-            </TouchableOpacity>
-          )}
-          
-          <TouchableOpacity
-            style={[styles.headerButton, styles.createButton]}
-            onPress={handleCreateAlert}
-          >
-            <MaterialIcons name="add-alert" size={18} color="#fff" />
-            <Text style={styles.headerButtonText}>Create Alert</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <MaterialIcons name="arrow-back" size={24} color="#007AFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Create New Alert</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Filter Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'ALL' && styles.filterButtonActive]}
-          onPress={() => setFilter('ALL')}
-        >
-          <Text style={[styles.filterText, filter === 'ALL' && styles.filterTextActive]}>
-            All ({alerts.length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'CREATED' && styles.filterButtonActive]}
-          onPress={() => setFilter('CREATED')}
-        >
-          <MaterialIcons name="warning" size={16} color={filter === 'CREATED' ? '#fff' : '#F59E0B'} />
-          <Text style={[styles.filterText, filter === 'CREATED' && styles.filterTextActive]}>
-            Created ({alerts.filter(a => a.status === 'CREATED').length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'ACKNOWLEDGED' && styles.filterButtonActive]}
-          onPress={() => setFilter('ACKNOWLEDGED')}
-        >
-          <MaterialIcons name="check-circle" size={16} color={filter === 'ACKNOWLEDGED' ? '#fff' : '#3B82F6'} />
-          <Text style={[styles.filterText, filter === 'ACKNOWLEDGED' && styles.filterTextActive]}>
-            Acknowledged ({alerts.filter(a => a.status === 'ACKNOWLEDGED').length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'CLEARED' && styles.filterButtonActive]}
-          onPress={() => setFilter('CLEARED')}
-        >
-          <MaterialIcons name="verified" size={16} color={filter === 'CLEARED' ? '#fff' : '#10B981'} />
-          <Text style={[styles.filterText, filter === 'CLEARED' && styles.filterTextActive]}>
-            Cleared ({alerts.filter(a => a.status === 'CLEARED').length})
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* Alerts List */}
-      <ScrollView
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {filteredAlerts.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="notifications-off" size={64} color="#9CA3AF" />
-            <Text style={styles.emptyStateTitle}>No Alerts</Text>
-            <Text style={styles.emptyStateText}>
-              {filter === 'ALL' 
-                ? 'No alerts found'
-                : `No ${filter.toLowerCase()} alerts found`
-              }
+      {/* Form */}
+      <View style={styles.formContainer}>
+        {/* Priority Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Priority</Text>
+          <View style={styles.priorityButtons}>
+            {(['LOW', 'MEDIUM', 'HIGH'] as const).map((p) => (
+              <TouchableOpacity
+                key={p}
+                style={[
+                  styles.priorityButton,
+                  priority === p && { backgroundColor: getPriorityColor(p) }
+                ]}
+                onPress={() => setPriority(p)}
+                disabled={submitting}
+              >
+                <MaterialIcons 
+                  name={
+                    p === 'HIGH' ? 'warning' :
+                    p === 'MEDIUM' ? 'info' : 'low-priority'
+                  } 
+                  size={20} 
+                  color={priority === p ? '#fff' : getPriorityColor(p)} 
+                />
+                <Text style={[
+                  styles.priorityButtonText,
+                  priority === p && styles.priorityButtonTextActive,
+                ]}>
+                  {p}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          <View style={styles.priorityDescription}>
+            <Text style={styles.descriptionText}>
+              {priority === 'HIGH' ? '🟥 Critical: Requires immediate attention' :
+               priority === 'MEDIUM' ? '🟨 Important: Address within this shift' :
+               '🟩 Minor: Monitor and address when possible'}
             </Text>
           </View>
-        ) : (
-          filteredAlerts.map((alert) => (
-            <View key={alert._id} style={styles.alertCard}>
-              {/* Alert Header with Status */}
-              <View style={styles.alertHeader}>
-                <View style={styles.alertTitleRow}>
-                  <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(alert.status) }]} />
-                  <Text style={styles.alertTitle}>{alert.title}</Text>
-                </View>
-                
-                <View style={styles.alertMeta}>
-                  <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(alert.priority) }]}>
-                    <Text style={styles.priorityText}>{alert.priority}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(alert.status) }]}>
-                    <Text style={styles.statusText}>{alert.status}</Text>
-                  </View>
-                </View>
-              </View>
+        </View>
 
-              {/* Alert Description */}
-              {alert.description && (
-                <Text style={styles.alertDescription}>{alert.description}</Text>
+        {/* Alert Title */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Alert Title <Text style={styles.required}>*</Text>
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="e.g., High Temperature Warning"
+            maxLength={100}
+            autoCapitalize="sentences"
+            autoCorrect={true}
+            editable={!submitting}
+          />
+          <Text style={styles.charCount}>{title.length}/100</Text>
+        </View>
+
+        {/* Alert Description */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Description (Optional)</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe the issue in detail...\n• What happened?\n• When did it start?\n• Any safety concerns?"
+            multiline
+            numberOfLines={5}
+            maxLength={500}
+            textAlignVertical="top"
+            editable={!submitting}
+          />
+          <Text style={styles.charCount}>{description.length}/500</Text>
+        </View>
+
+        {/* Preview Section */}
+        {title.trim() && (
+          <View style={styles.previewSection}>
+            <Text style={styles.previewTitle}>Alert Preview</Text>
+            <View style={styles.previewCard}>
+              <View style={styles.previewHeader}>
+                <MaterialIcons name="warning" size={20} color={getPriorityColor(priority)} />
+                <Text style={styles.previewAlertTitle}>{title}</Text>
+              </View>
+              {description.trim() && (
+                <Text style={styles.previewDescription}>{description}</Text>
               )}
-
-              {/* Alert Details */}
-              <View style={styles.alertDetails}>
-                <View style={styles.detailRow}>
-                  <MaterialIcons name="precision-manufacturing" size={14} color="#666" />
-                  <Text style={styles.detailLabel}>Machine:</Text>
-                  <Text style={styles.detailValue}>{getMachineName(alert.machineId)}</Text>
+              <View style={styles.previewDetails}>
+                <View style={styles.previewDetailItem}>
+                  <MaterialIcons name="flag" size={14} color={getPriorityColor(priority)} />
+                  <Text style={[styles.previewDetailText, { color: getPriorityColor(priority) }]}>
+                    {priority} Priority
+                  </Text>
                 </View>
-                
-                <View style={styles.detailRow}>
+                <View style={styles.previewDetailItem}>
                   <MaterialIcons name="person" size={14} color="#666" />
-                  <Text style={styles.detailLabel}>Created By:</Text>
-                  <Text style={styles.detailValue}>{getCreatedByEmail(alert.createdBy)}</Text>
+                  <Text style={styles.previewDetailText}>
+                    Created by: {user?.firstName} {user?.lastName}
+                  </Text>
                 </View>
-                
-                <View style={styles.detailRow}>
-                  <MaterialIcons name="access-time" size={14} color="#666" />
-                  <Text style={styles.detailLabel}>Created:</Text>
-                  <Text style={styles.detailValue}>{formatDate(alert.createdAt)}</Text>
-                </View>
-                
-                {alert.acknowledgedAt && (
-                  <View style={styles.detailRow}>
-                    <MaterialIcons name="check-circle" size={14} color="#3B82F6" />
-                    <Text style={styles.detailLabel}>Acknowledged:</Text>
-                    <Text style={styles.detailValue}>{formatDate(alert.acknowledgedAt)}</Text>
-                  </View>
-                )}
-                
-                {alert.clearedAt && (
-                  <View style={styles.detailRow}>
-                    <MaterialIcons name="verified" size={14} color="#10B981" />
-                    <Text style={styles.detailLabel}>Cleared:</Text>
-                    <Text style={styles.detailValue}>{formatDate(alert.clearedAt)}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Action Buttons */}
-              <View style={styles.actionsContainer}>
-                {/* Operator can acknowledge CREATED alerts */}
-                {alert.status === 'CREATED' && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.acknowledgeButton]}
-                    onPress={() => handleAcknowledge(alert._id)}
-                    disabled={actionLoading === alert._id}
-                  >
-                    {actionLoading === alert._id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <MaterialIcons name="check-circle" size={16} color="#fff" />
-                        <Text style={styles.actionButtonText}>Acknowledge</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-                
-                {/* Supervisor can clear ACKNOWLEDGED alerts */}
-                {isSupervisor && alert.status === 'ACKNOWLEDGED' && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.clearButton]}
-                    onPress={() => handleClearAlert(alert._id)}
-                    disabled={actionLoading === alert._id}
-                  >
-                    {actionLoading === alert._id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <MaterialIcons name="done-all" size={16} color="#fff" />
-                        <Text style={styles.actionButtonText}>Clear Alert</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-                
-                {/* Show completed badge for CLEARED alerts */}
-                {alert.status === 'CLEARED' && (
-                  <View style={styles.completedBadge}>
-                    <MaterialIcons name="verified" size={16} color="#10B981" />
-                    <Text style={styles.completedText}>Resolved</Text>
-                  </View>
-                )}
               </View>
             </View>
-          ))
+          </View>
         )}
-      </ScrollView>
-    </View>
+      </View>
+
+      {/* Action Buttons */}
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={[styles.button, styles.cancelButton]}
+          onPress={() => router.back()}
+          disabled={submitting}
+        >
+          <Text style={styles.cancelButtonText}>Cancel</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.button,
+            styles.submitButton,
+            (!title.trim() || submitting) && styles.submitButtonDisabled,
+          ]}
+          onPress={handleSubmit}
+          disabled={submitting || !title.trim()}
+        >
+          {submitting ? (
+            <>
+              <ActivityIndicator size="small" color="#fff" />
+              <Text style={styles.submitButtonText}>Creating...</Text>
+            </>
+          ) : (
+            <>
+              <MaterialIcons name="add-alert" size={20} color="#fff" />
+              <Text style={styles.submitButtonText}>Create Alert</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Help Info */}
+      <View style={styles.helpContainer}>
+        <MaterialIcons name="info" size={16} color="#666" />
+        <Text style={styles.helpText}>
+          This alert will be visible to all supervisors for review and action.
+          Please provide accurate information for quick resolution.
+        </Text>
+      </View>
+    </ScrollView>
   );
 }
 
@@ -450,6 +304,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f5f5f5',
   },
   loadingText: {
     marginTop: 12,
@@ -460,216 +316,229 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 20,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 6,
-  },
-  createButton: {
-    backgroundColor: '#007AFF',
-  },
-  simulateButton: {
-    backgroundColor: '#8B5CF6',
-  },
-  headerButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  filterContainer: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-    marginRight: 8,
-    gap: 6,
-  },
-  filterButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  filterText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6B7280',
-  },
-  filterTextActive: {
-    color: '#fff',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-    marginTop: 40,
-  },
-  emptyStateTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#333',
-    marginTop: 16,
-    marginBottom: 8,
   },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 20,
+  formContainer: {
+    padding: 20,
   },
-  alertCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  section: {
+    marginBottom: 24,
   },
-  alertHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
     marginBottom: 12,
   },
-  alertTitleRow: {
+  required: {
+    color: '#DC2626',
+  },
+  priorityButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  priorityButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  priorityButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  priorityButtonTextActive: {
+    color: '#fff',
+  },
+  priorityDescription: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#333',
+  },
+  textArea: {
+    minHeight: 120,
+    paddingTop: 12,
+    textAlignVertical: 'top',
+  },
+  charCount: {
+    textAlign: 'right',
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  previewSection: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  previewTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  previewCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  previewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flex: 1,
+    marginBottom: 12,
   },
-  statusIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  alertTitle: {
+  previewAlertTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
     flex: 1,
   },
-  alertMeta: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  priorityText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  alertDescription: {
+  previewDescription: {
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
     marginBottom: 16,
+    paddingLeft: 28,
   },
-  alertDetails: {
-    gap: 8,
-    marginBottom: 16,
-    backgroundColor: '#f9fafb',
-    padding: 12,
-    borderRadius: 8,
+  previewDetails: {
+    flexDirection: 'row',
+    gap: 16,
+    flexWrap: 'wrap',
   },
-  detailRow: {
+  previewDetailItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
-  detailLabel: {
+  previewDetailText: {
     fontSize: 12,
     color: '#666',
-    width: 80,
   },
-  detailValue: {
-    fontSize: 12,
-    color: '#333',
-    fontWeight: '500',
-    flex: 1,
-  },
-  actionsContainer: {
-    marginTop: 8,
-  },
-  actionButton: {
+  actionButtons: {
     flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  button: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 16,
     borderRadius: 8,
+  },
+  cancelButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  cancelButtonText: {
+    color: '#374151',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  submitButton: {
+    backgroundColor: '#007AFF',
+    flexDirection: 'row',
     gap: 8,
   },
-  acknowledgeButton: {
-    backgroundColor: '#3B82F6',
+  submitButtonDisabled: {
+    opacity: 0.5,
   },
-  clearButton: {
-    backgroundColor: '#DC2626',
-  },
-  actionButtonText: {
+  submitButtonText: {
     color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
-    fontSize: 14,
   },
-  completedBadge: {
+  helpContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 12,
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 18,
+    flex: 1,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#DC2626',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  retryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    gap: 8,
+    marginBottom: 16,
+    paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#D1FAE5',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#007AFF',
   },
-  completedText: {
-    color: '#047857',
-    fontSize: 14,
+  retryButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  backButton: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  backButtonText: {
+    color: '#374151',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

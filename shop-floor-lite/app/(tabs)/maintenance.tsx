@@ -92,7 +92,7 @@ const loadTasks = async () => {
 
   // Handle create maintenance navigation
   const handleCreateMaintenance = () => {
-    router.push('/create-maintenance');
+    // router.push('/create-maintenance/index')
   };
 
   // Handle mark as complete (operator only)

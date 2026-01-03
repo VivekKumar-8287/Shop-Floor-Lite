@@ -92,6 +92,35 @@ export const maintenanceApi = {
   getById: (id: string) => api.get(`/maintenance/${id}`),
 };
 
+export const alertApi = {
+  // Get all alerts with optional filters
+  getAll: (params?: { 
+    status?: string; 
+    priority?: string;
+  }) => api.get('/alerts/', { params }),
+  
+  // Create alert - REMOVED: machineId parameter
+  create: (data: {
+    title: string;
+    description?: string;
+    priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  }) => api.post('/alerts/', data),
+  
+  // Acknowledge alert (operator OR supervisor)
+  acknowledge: (id: string, data: { notes?: string }) => 
+    api.put(`/alerts/${id}/acknowledge`, data),
+  
+  // Clear alert (supervisor only)
+  clear: (id: string, data: { notes?: string }) => 
+    api.put(`/alerts/${id}/clear`, data),
+  
+  // Simulate alert creation (for testing, supervisor only)
+  simulate: () => api.post('/alerts/simulate'),
+  
+  // Get alert by ID
+  getById: (id: string) => api.get(`/alerts/${id}`),
+};
+
 // Add these new APIs for reports and sync
 export const reportApi = {
   getSummary: () => api.get('/report/summary'),

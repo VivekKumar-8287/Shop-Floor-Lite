@@ -1,45 +1,66 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Alert } from '../types';
+// features/alerts/alertSlice.js
+import { createSlice } from '@reduxjs/toolkit';
 
-interface AlertState {
-  alerts: Alert[];
-  loading: boolean;
-}
-
-const initialState: AlertState = {
+const initialState = {
   alerts: [],
+  selectedAlert: null,
   loading: false,
+  error: null,
+  filterStatus: null,
+  filterPriority: null
 };
 
 const alertSlice = createSlice({
   name: 'alerts',
   initialState,
   reducers: {
-    setAlerts: (state, action: PayloadAction<Alert[]>) => {
+    setAlerts: (state, action) => {
       state.alerts = action.payload;
     },
-    addAlert: (state, action: PayloadAction<Alert>) => {
-      state.alerts.unshift(action.payload);
+    setSelectedAlert: (state, action) => {
+      state.selectedAlert = action.payload;
     },
-    acknowledgeAlert: (state, action: PayloadAction<{id: string, email: string}>) => {
-      const alert = state.alerts.find(a => a.id === action.payload.id);
-      if (alert) {
-        alert.status = 'Acknowledged';
-        alert.acknowledgedBy = action.payload.email;
-        alert.acknowledgedAt = new Date().toISOString();
-      }
-    },
-    clearAlert: (state, action: PayloadAction<string>) => {
-      const alert = state.alerts.find(a => a.id === action.payload);
-      if (alert) {
-        alert.status = 'Cleared';
-      }
-    },
-    setLoading: (state, action: PayloadAction<boolean>) => {
+    setLoading: (state, action) => {
       state.loading = action.payload;
     },
-  },
+    setError: (state, action) => {
+      state.error = action.payload;
+    },
+    updateAlertStatus: (state, action) => {
+      const { alertId, status, acknowledgedBy, clearedBy, clearedAt } = action.payload;
+      const alert = state.alerts.find(a => a._id === alertId);
+      if (alert) {
+        alert.status = status;
+        if (acknowledgedBy) {
+          alert.acknowledgedBy = acknowledgedBy;
+        }
+        if (clearedBy) {
+          alert.clearedBy = clearedBy;
+          alert.clearedAt = clearedAt;
+        }
+      }
+    },
+    addAlert: (state, action) => {
+      state.alerts.unshift(action.payload);
+    },
+    setFilterStatus: (state, action) => {
+      state.filterStatus = action.payload;
+    },
+    setFilterPriority: (state, action) => {
+      state.filterPriority = action.payload;
+    }
+  }
 });
 
-export const { setAlerts, addAlert, acknowledgeAlert, clearAlert, setLoading } = alertSlice.actions;
+export const {
+  setAlerts,
+  setSelectedAlert,
+  setLoading,
+  setError,
+  updateAlertStatus,
+  addAlert,
+  setFilterStatus,
+  setFilterPriority
+} = alertSlice.actions;
+
 export default alertSlice.reducer;

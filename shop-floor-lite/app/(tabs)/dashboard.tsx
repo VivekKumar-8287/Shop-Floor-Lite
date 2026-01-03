@@ -1,29 +1,33 @@
+import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  ActivityIndicator,
-  TouchableOpacity,
-  Alert, // Add this import
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
-import { useSelector, useDispatch } from "react-redux";
-import { RootState, AppDispatch } from "../../store";
-import { setMachines } from "../../store/machineSlice";
+import { useDispatch, useSelector } from "react-redux";
 import { MachineCard } from "../../components/MachineCard";
-import { KPICard } from "../../components/KPICard";
-import { useRouter } from "expo-router";
-import { machineApi, downtimeApi } from "../../lib/api"; // Add downtimeApi import
-import { MaterialIcons } from "@expo/vector-icons"; // Add this import
+import { useToast } from '../../components/ToastProvider';
+import { alertApi, machineApi } from "../../lib/api";
+import { AppDispatch, RootState } from "../../store";
+import { acknowledgeAlert } from '../../store/alertSlice';
+import { setMachines } from "../../store/machineSlice";
 
+// ADD THIS COMPONENT DECLARATION
 export default function DashboardScreen() {
+  // Your state declarations...
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loadingDowntimes, setLoadingDowntimes] = useState(false); // Add this state
-
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
+  
   const machines = useSelector((state: RootState) => state.machines.machines);
   const user = useSelector((state: RootState) => state.auth.user);
   const downtimeEntries = useSelector(
@@ -32,10 +36,13 @@ export default function DashboardScreen() {
 
   const dispatch = useDispatch<AppDispatch>();
   const router = useRouter();
+  const { showToast } = useToast();
 
   useEffect(() => {
     loadMachines();
+     loadAlerts(); 
   }, []);
+
 
   const loadMachines = async () => {
     setLoading(true);
@@ -43,7 +50,7 @@ export default function DashboardScreen() {
     try {
       // REAL API CALL to your backend
       const response = await machineApi.getAll();
-      console.log("Response data", response.data);
+      console.log("Response data",response.data)
 
       if (response.data.success && Array.isArray(response.data.data)) {
         // Transform the data: map _id to id
@@ -93,77 +100,56 @@ export default function DashboardScreen() {
     }
   };
 
-  // NEW FUNCTION: Fetch all downtime records
-  const fetchAllDowntimeRecords = async () => {
+ const loadAlerts = async () => {
+  try {
+    setLoadingAlerts(true);
+    const response = await alertApi.getAll();
+    if (response.data.success && Array.isArray(response.data.data)) {
+      setAlerts(response.data.data);
+    }
+  } catch (error) {
+    console.error('Failed to load alerts:', error);
+  } finally {
+    setLoadingAlerts(false);
+  }
+};
+    
+ const handleAcknowledge = async (alertId: string) => {
     try {
-      setLoadingDowntimes(true);
-      console.log("📊 Fetching all downtime records...");
-
-      const response = await downtimeApi.getAll();
-      console.log("📦 Downtime API Response:", response.data);
-
-      if (response.data.success && Array.isArray(response.data.data)) {
-        const allDowntimes = response.data.data;
-        console.log(`✅ Found ${allDowntimes.length} downtime records`);
-
-        // Show summary in alert
-        Alert.alert(
-          "All Downtime Records",
-          `Found ${allDowntimes.length} downtime records:\n\n` +
-            `Active: ${allDowntimes.filter((d: any) => !d.endTime).length}\n` +
-            `Completed: ${
-              allDowntimes.filter((d: any) => d.endTime).length
-            }\n\n` +
-            "See console for full details.",
-          [
-            { text: "OK", style: "default" },
-            {
-              text: "View Details",
-              onPress: () => {
-                // Navigate to a downtime list screen if you have one
-                // router.push('/(tabs)/downtime');
-                console.log("Full downtime data:", allDowntimes);
-              },
-            },
-          ]
-        );
-
-        // Log all downtimes to console
-        allDowntimes.forEach((downtime: any, index: number) => {
-          console.log(`📝 Downtime ${index + 1}:`, {
-            id: downtime._id,
-            machine: downtime.machineId?.name || downtime.machineId,
-            reason: downtime.reasonCategory || downtime.reasonCode,
-            startTime: new Date(downtime.startTime).toLocaleString(),
-            endTime: downtime.endTime
-              ? new Date(downtime.endTime).toLocaleString()
-              : "Active",
-            duration: downtime.endTime
-              ? Math.round(
-                  (new Date(downtime.endTime).getTime() -
-                    new Date(downtime.startTime).getTime()) /
-                    60000
-                ) + " min"
-              : "Ongoing",
-            operator: downtime.operatorId?.email || "Unknown",
-          });
-        });
-      } else {
-        Alert.alert(
-          "No Data",
-          "No downtime records found or failed to load data.",
-          [{ text: "OK", style: "default" }]
-        );
+      const response = await alertApi.acknowledge(alertId, { 
+        notes: 'Acknowledged by operator' 
+      });
+      
+      if (response.data.success) {
+        // Update Redux
+        dispatch(acknowledgeAlert({
+          id: alertId,
+          user: {
+            _id: user?._id || '',
+            firstName: user?.firstName || '',
+            lastName: user?.lastName || '',
+            email: user?.email || '',
+            role: user?.role || 'operator'
+          }
+        }));
+        
+        // Update local state
+        setAlerts(prev => prev.map(alert => 
+          alert._id === alertId 
+            ? { 
+                ...alert, 
+                status: 'ACKNOWLEDGED',
+                acknowledgedBy: [...(alert.acknowledgedBy || []), user],
+                acknowledgedAt: new Date().toISOString()
+              }
+            : alert
+        ));
+        
+        showToast('Alert acknowledged', 'success');
       }
     } catch (error: any) {
-      console.error("❌ Error fetching downtime records:", error);
-      Alert.alert(
-        "Error",
-        `Failed to load downtime records: ${error.message}`,
-        [{ text: "OK", style: "cancel" }]
-      );
-    } finally {
-      setLoadingDowntimes(false);
+      console.error('Failed to acknowledge alert:', error);
+      showToast(error.response?.data?.error || 'Failed to acknowledge', 'error');
     }
   };
 
@@ -188,56 +174,7 @@ export default function DashboardScreen() {
     }
   };
 
-  // Calculate KPIs from real data
-  const calculateKPIs = () => {
-    const activeMachines = machines.filter((m) => m.status === "RUN").length;
-    const totalDowntime = downtimeEntries.filter((d) => !d.endTime).length;
-    const activeAlerts = 0; // You'll need to fetch this from your backend
-
-    // Machine utilization rate (simplified)
-    const utilizationRate =
-      machines.length > 0
-        ? Math.round((activeMachines / machines.length) * 100)
-        : 0;
-
-    // Calculate OEE (Overall Equipment Effectiveness) - simplified
-    const availability = machines.length > 0 ? 0.85 : 0; // Mock data
-    const performance = machines.length > 0 ? 0.9 : 0; // Mock data
-    const quality = machines.length > 0 ? 0.95 : 0; // Mock data
-    const oee = Math.round(availability * performance * quality * 100);
-
-    return [
-      {
-        title: "Active Machines",
-        value: activeMachines,
-        unit: "",
-        color: "#4CAF50",
-      },
-      {
-        title: "Total Downtime",
-        value: totalDowntime,
-        unit: " incidents",
-        color: "#F44336",
-      },
-      {
-        title: "Utilization Rate",
-        value: utilizationRate,
-        unit: "%",
-        color: "#2196F3",
-      },
-      { title: "OEE", value: oee, unit: "%", color: "#FF9800" },
-      { title: "Alerts", value: activeAlerts, unit: "", color: "#9C27B0" },
-      {
-        title: "Total Machines",
-        value: machines.length,
-        unit: "",
-        color: "#607D8B",
-      },
-    ];
-  };
-
-  const kpis = calculateKPIs();
-
+  
   if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
@@ -266,41 +203,10 @@ export default function DashboardScreen() {
             <Text style={styles.errorText}>⚠️ {error}</Text>
           </View>
         )}
-
-        {/* All Downtime Records Button */}
-        <TouchableOpacity
-          style={styles.downtimeButton}
-          onPress={fetchAllDowntimeRecords}
-          disabled={loadingDowntimes}
-        >
-          {loadingDowntimes ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <MaterialIcons name="history" size={20} color="#fff" />
-              <Text style={styles.downtimeButtonText}>
-                All Downtime Records
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Performance Overview</Text>
-        <View style={styles.kpiGrid}>
-          {kpis.map((kpi, index) => (
-            <KPICard
-              key={index}
-              title={kpi.title}
-              value={kpi.value}
-              unit={kpi.unit}
-              color={kpi.color}
-            />
-          ))}
-        </View>
-      </View>
-
+      
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Machines</Text>
@@ -324,39 +230,87 @@ export default function DashboardScreen() {
           ))
         )}
       </View>
-
+            {/* Alerts Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.quickActions}>
-          {user?.role === "operator" ? (
-            <>
-              <View style={styles.actionItem}>
-                <Text style={styles.actionText}>Record Downtime</Text>
-                <Text style={styles.actionSubtext}>Log machine stoppages</Text>
-              </View>
-              <View style={styles.actionItem}>
-                <Text style={styles.actionText}>Maintenance Checklist</Text>
-                <Text style={styles.actionSubtext}>Complete daily tasks</Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.actionItem}>
-                <Text style={styles.actionText}>View Alerts</Text>
-                <Text style={styles.actionSubtext}>
-                  Monitor shop floor alerts
-                </Text>
-              </View>
-              <View style={styles.actionItem}>
-                <Text style={styles.actionText}>Shift Report</Text>
-                <Text style={styles.actionSubtext}>
-                  Generate performance report
-                </Text>
-              </View>
-            </>
-          )}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Active Alerts</Text>
+          <TouchableOpacity onPress={loadAlerts}>
+            <MaterialIcons name="refresh" size={20} color="#007AFF" />
+          </TouchableOpacity>
         </View>
+
+        {loadingAlerts ? (
+          <View style={styles.centerLoader}>
+            <ActivityIndicator size="small" color="#007AFF" />
+            <Text style={styles.loadingText}>Loading alerts...</Text>
+          </View>
+        ) : alerts.length === 0 ? (
+          <View style={styles.emptyAlerts}>
+            <MaterialIcons name="notifications-off" size={40} color="#D1D5DB" />
+            <Text style={styles.emptyAlertsText}>No active alerts</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={alerts.filter(a => a.status === 'CREATED' || a.status === 'ACKNOWLEDGED')}
+            renderItem={({ item }) => (
+              <View style={styles.alertCard}>
+                <View style={styles.alertHeader}>
+                  <MaterialIcons 
+                    name={item.status === 'CREATED' ? 'warning' : 'check-circle'} 
+                    size={20} 
+                    color={item.status === 'CREATED' ? '#F59E0B' : '#10B981'} 
+                  />
+                  <Text style={styles.alertTitle}>{item.title}</Text>
+                  <View style={[
+                    styles.alertStatus,
+                    { 
+                      backgroundColor: item.status === 'CREATED' ? '#FEF3C7' : 
+                                     item.status === 'ACKNOWLEDGED' ? '#D1FAE5' : '#F3F4F6'
+                    }
+                  ]}>
+                    <Text style={[
+                      styles.alertStatusText,
+                      { 
+                        color: item.status === 'CREATED' ? '#92400E' : 
+                               item.status === 'ACKNOWLEDGED' ? '#065F46' : '#6B7280'
+                      }
+                    ]}>
+                      {item.status}
+                    </Text>
+                  </View>
+                </View>
+                
+                <Text style={styles.alertDescription} numberOfLines={2}>
+                  {item.description || 'No description'}
+                </Text>
+                
+                <View style={styles.alertFooter}>
+                  <View style={styles.alertMachine}>
+                    <MaterialIcons name="precision-manufacturing" size={14} color="#666" />
+                    <Text style={styles.alertMachineText}>
+                      {typeof item.machineId === 'object' ? item.machineId.name : 'Unknown Machine'}
+                    </Text>
+                  </View>
+                  
+                  {item.status === 'CREATED' && user?.role === 'operator' && (
+                    <TouchableOpacity
+                      style={styles.acknowledgeButton}
+                      onPress={() => handleAcknowledge(item._id)}
+                    >
+                      <MaterialIcons name="check-circle" size={16} color="#fff" />
+                      <Text style={styles.acknowledgeButtonText}>Acknowledge</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            )}
+            keyExtractor={(item) => item._id}
+            scrollEnabled={false}
+          />
+        )}
       </View>
+
+      
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>
@@ -417,23 +371,6 @@ const styles = StyleSheet.create({
     color: "#D32F2F",
     fontSize: 14,
   },
-  // NEW STYLES for downtime button
-  downtimeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#8B5CF6",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    gap: 8,
-    marginTop: 8,
-  },
-  downtimeButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 14,
-  },
   section: {
     padding: 16,
   },
@@ -452,53 +389,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
   },
-  kpiGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  emptyState: {
-    backgroundColor: "#fff",
-    padding: 40,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: "500",
-    color: "#666",
-    marginBottom: 8,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: "#999",
-    textAlign: "center",
-  },
-  quickActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  actionItem: {
-    flex: 1,
-    minWidth: 150,
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  actionText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#333",
-    marginBottom: 4,
-  },
-  actionSubtext: {
-    fontSize: 12,
-    color: "#666",
-  },
+  
   footer: {
     padding: 20,
     alignItems: "center",
@@ -506,5 +397,89 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 12,
     color: "#999",
+  },
+    centerLoader: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyAlerts: {
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  emptyAlertsText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 12,
+  },
+  alertCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  alertHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  alertTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  alertStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  alertStatusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  alertDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  alertFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  alertMachine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  alertMachineText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  acknowledgeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 6,
+  },
+  acknowledgeButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
