@@ -215,7 +215,6 @@ export default function AlertScreen() {
     return createdBy || 'Unknown';
   };
 
-  // Filter alerts based on selected filter
   const getFilteredAlerts = () => {
     if (filter === 'ALL') return alerts;
     return alerts.filter(alert => alert.status === filter);
@@ -265,47 +264,64 @@ export default function AlertScreen() {
         </View>
       </View>
 
-      {/* Filter Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'ALL' && styles.filterButtonActive]}
-          onPress={() => setFilter('ALL')}
-        >
-          <Text style={[styles.filterText, filter === 'ALL' && styles.filterTextActive]}>
-            All ({alerts.length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'CREATED' && styles.filterButtonActive]}
-          onPress={() => setFilter('CREATED')}
-        >
-          <MaterialIcons name="warning" size={16} color={filter === 'CREATED' ? '#fff' : '#F59E0B'} />
-          <Text style={[styles.filterText, filter === 'CREATED' && styles.filterTextActive]}>
-            Created ({alerts.filter(a => a.status === 'CREATED').length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'ACKNOWLEDGED' && styles.filterButtonActive]}
-          onPress={() => setFilter('ACKNOWLEDGED')}
-        >
-          <MaterialIcons name="check-circle" size={16} color={filter === 'ACKNOWLEDGED' ? '#fff' : '#3B82F6'} />
-          <Text style={[styles.filterText, filter === 'ACKNOWLEDGED' && styles.filterTextActive]}>
-            Acknowledged ({alerts.filter(a => a.status === 'ACKNOWLEDGED').length})
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.filterButton, filter === 'CLEARED' && styles.filterButtonActive]}
-          onPress={() => setFilter('CLEARED')}
-        >
-          <MaterialIcons name="verified" size={16} color={filter === 'CLEARED' ? '#fff' : '#10B981'} />
-          <Text style={[styles.filterText, filter === 'CLEARED' && styles.filterTextActive]}>
-            Cleared ({alerts.filter(a => a.status === 'CLEARED').length})
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
+<View style={styles.filterGrid}>
+  {/* First row: ALL and CREATED */}
+  <View style={styles.filterRow}>
+    <TouchableOpacity
+      style={[styles.filterTab, filter === 'ALL' && styles.filterTabActive]}
+      onPress={() => setFilter('ALL')}
+    >
+      <Text style={[styles.filterTabText, filter === 'ALL' && styles.filterTabTextActive]}>
+        All ({alerts.length})
+      </Text>
+    </TouchableOpacity>
+    
+    <TouchableOpacity
+      style={[styles.filterTab, filter === 'CREATED' && styles.filterTabActive]}
+      onPress={() => setFilter('CREATED')}
+    >
+      <MaterialIcons 
+        name="warning" 
+        size={18} 
+        color={filter === 'CREATED' ? '#fff' : '#F59E0B'} 
+      />
+      <Text style={[styles.filterTabText, filter === 'CREATED' && styles.filterTabTextActive]}>
+        Created ({alerts.filter(a => a.status === 'CREATED').length})
+      </Text>
+    </TouchableOpacity>
+  </View>
+
+  {/* Second row: ACKNOWLEDGED and CLEARED */}
+  <View style={styles.filterRow}>
+    <TouchableOpacity
+      style={[styles.filterTab, filter === 'ACKNOWLEDGED' && styles.filterTabActive]}
+      onPress={() => setFilter('ACKNOWLEDGED')}
+    >
+      <MaterialIcons 
+        name="check-circle" 
+        size={18} 
+        color={filter === 'ACKNOWLEDGED' ? '#fff' : '#3B82F6'} 
+      />
+      <Text style={[styles.filterTabText, filter === 'ACKNOWLEDGED' && styles.filterTabTextActive]}>
+        Acknowledged ({alerts.filter(a => a.status === 'ACKNOWLEDGED').length})
+      </Text>
+    </TouchableOpacity>
+    
+    <TouchableOpacity
+      style={[styles.filterTab, filter === 'CLEARED' && styles.filterTabActive]}
+      onPress={() => setFilter('CLEARED')}
+    >
+      <MaterialIcons 
+        name="verified" 
+        size={18} 
+        color={filter === 'CLEARED' ? '#fff' : '#10B981'} 
+      />
+      <Text style={[styles.filterTabText, filter === 'CLEARED' && styles.filterTabTextActive]}>
+        Cleared ({alerts.filter(a => a.status === 'CLEARED').length})
+      </Text>
+    </TouchableOpacity>
+  </View>
+</View>
 
       {/* Alerts List */}
       <ScrollView
@@ -498,6 +514,42 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
   },
+  // Filter Grid - 2x2 layout
+filterGrid: {
+  backgroundColor: '#fff',
+  padding: 16,
+  paddingTop: 12,
+  paddingBottom: 12,
+  borderBottomWidth: 1,
+  borderBottomColor: '#e0e0e0',
+},
+filterRow: {
+  flexDirection: 'row',
+  gap: 12,
+  marginBottom: 12,
+},
+filterTab: {
+  flex: 1,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingVertical: 16,
+  paddingHorizontal: 12,
+  borderRadius: 10,
+  backgroundColor: '#f3f4f6',
+  gap: 8,
+},
+filterTabActive: {
+  backgroundColor: '#007AFF',
+},
+filterTabText: {
+  fontSize: 14,
+  fontWeight: '500',
+  color: '#6B7280',
+},
+filterTabTextActive: {
+  color: '#fff',
+},
   filterContainer: {
     backgroundColor: '#fff',
     paddingHorizontal: 16,

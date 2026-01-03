@@ -12,7 +12,7 @@ import {
   testAllApis,
   testApiConnection,
   checkNetworkStatus,
-} from '../lib/api-debug';
+} from '../../lib/api-debug';
 
 export default function ApiDebugScreen() {
   const [logs, setLogs] = useState<string[]>([]);

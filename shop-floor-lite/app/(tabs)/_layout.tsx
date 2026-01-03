@@ -14,9 +14,9 @@ export default function TabLayout() {
     return null; // or a loading spinner
   }
 
-  if (!userRole) {
-    return <Redirect href="/(auth)/login" />;
-  }
+  // if (!userRole) {
+  //   return <Redirect href="/(auth)/login" />;
+  // }
   // Operator tabs
   if (userRole === 'operator') {
     return (
@@ -60,7 +60,6 @@ export default function TabLayout() {
         {/* Hide supervisor and unused tabs */}
         <Tabs.Screen name="alerts" options={{ href: null }} />
         <Tabs.Screen name="kpi" options={{ href: null }} />
-        <Tabs.Screen name="index" options={{ href: null }} />
       </Tabs>
     );
   }
@@ -105,17 +104,10 @@ export default function TabLayout() {
     ),
   }}
 />
-<Tabs.Screen
-  name="debug-api"
-  options={{
-    title: 'API Debug',
-   
-  }}
-/>
+
         {/* Hide operator tabs */}
         <Tabs.Screen name="downtime" options={{ href: null }} />
         <Tabs.Screen name="maintenance" options={{ href: null }} />
-        <Tabs.Screen name="index" options={{ href: null }} />
       </Tabs>
     );
   }

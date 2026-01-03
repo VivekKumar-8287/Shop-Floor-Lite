@@ -12,13 +12,17 @@ import {
   View,
 } from 'react-native';
 import { useSelector } from 'react-redux';
-import { useToast } from '../../components/ToastProvider';
 import { alertApi } from '../../lib/api';
 import { RootState } from '../../store';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useToast, useApiErrorHandler } from '../../components/ToastProvider';
+
+
 
 export default function CreateAlertScreen() {
   const router = useRouter();
   const { showToast } = useToast();
+const { handleApiError } = useApiErrorHandler();
   const user = useSelector((state: RootState) => state.auth.user);
   
   // Form state - REMOVED: selectedMachineId
@@ -54,78 +58,48 @@ export default function CreateAlertScreen() {
     }
   };
 
-  // Submit alert
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-    
-    Alert.alert(
-      'Create Alert',
-      `Are you sure you want to create this alert?\n\n` +
-      `Title: ${title}\n` +
-      `Priority: ${priority}\n\n` +
-      `This will notify all supervisors.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Create Alert',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setSubmitting(true);
-              
-              // Prepare data for alertApi.create - REMOVED: machineId
-              const alertData = {
-                title: title.trim(),
-                description: description.trim() || undefined,
-                priority,
-              };
-              
-              console.log('🚀 Creating alert with data:', alertData);
-              
-              // Call the API
-              const response = await alertApi.create(alertData);
-              console.log('📦 Alert creation response:', response.data);
-              
-              if (response.data.success) {
-                showToast('Alert created successfully!', 'success');
-                
-                // Clear form
-                setTitle('');
-                setDescription('');
-                setPriority('MEDIUM');
-                
-                // Navigate back after success
-                // setTimeout(() => {
-                //   router.push('/(tabs)/alerts'); // Go to alerts list
-                // }, 1500);
-                router.push('/(tabs)/alerts'); 
-              } else {
-                throw new Error(response.data.error || 'Failed to create alert');
-              }
-            } catch (error: any) {
-              console.error('❌ Error creating alert:', error);
-              
-              // Handle specific error cases
-              if (error.response?.status === 400) {
-                showToast('Invalid data. Please check your inputs.', 'error');
-              } else if (error.response?.status === 401) {
-                showToast('Please login again', 'error');
-              } else {
-                showToast(
-                  error.response?.data?.error || 
-                  error.message || 
-                  'Failed to create alert. Please try again.',
-                  'error'
-                );
-              }
-            } finally {
-              setSubmitting(false);
-            }
-          },
-        },
-      ]
-    );
-  };
+const handleSubmit = async () => {
+  if (!validateForm()) {
+    showToast('Please fill in all required fields', 'error');
+    return;
+  }
+
+  try {
+    setSubmitting(true);
+
+    const payload = {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      priority,
+    };
+
+    console.log('🚀 CREATE ALERT PAYLOAD 👉', payload);
+
+    const res = await alertApi.create(payload);
+
+    console.log('✅ CREATE ALERT RESPONSE 👉', res?.data);
+
+    if (res?.data?.success || res?.status === 201) {
+      showToast('Alert created successfully!', 'success');
+
+      setTitle('');
+      setDescription('');
+      setPriority('MEDIUM');
+
+      router.replace('/(tabs)/alerts');
+      return;
+    }
+
+    showToast(res?.data?.error || 'Failed to create alert', 'error');
+  } catch (error: any) {
+    console.log('❌ CREATE ALERT ERROR 👉', error);
+    handleApiError(error); // ✅ centralized error handling
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+
 
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
@@ -209,7 +183,7 @@ export default function CreateAlertScreen() {
             style={[styles.input, styles.textArea]}
             value={description}
             onChangeText={setDescription}
-            placeholder="Describe the issue in detail...\n• What happened?\n• When did it start?\n• Any safety concerns?"
+            placeholder="Describe the issue in detail..."
             multiline
             numberOfLines={5}
             maxLength={500}
