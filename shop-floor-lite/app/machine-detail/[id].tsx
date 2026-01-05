@@ -58,12 +58,12 @@ export default function MachineDetail() {
   const user = useSelector((state: RootState) => state.auth.user);
   
   // Get downtime entries from Redux
-  const downtimeEntries = useSelector((state: RootState) => 
-    state.downtime.entries.filter(d => 
-      (d.machineId === id || d.machineId?._id === id) && 
-      !d.endTime
-    )
-  );
+  const downtimeEntries = useSelector((state: RootState) =>
+  state.downtime.entries.filter(d =>
+    (d.machineId === id || d.machineId?._id === id) &&
+    d.endTime == null // null OR undefined only
+  )
+);
 
   // Load machine details
   const loadMachine = useCallback(async () => {
@@ -165,7 +165,16 @@ export default function MachineDetail() {
       loadMachine();
     checkActiveDowntime(); 
     }
-  }, [id, loadMachine]);
+  }, [id, loadMachine,endingDowntime]);
+
+//   useEffect(() => {
+//      loadMachine();
+//   //   checkActiveDowntime(); 
+//   if (downtimeEntries.length === 0) {
+//     setActiveDowntime(null);
+//   }
+// }, [id]);
+
 
 
   const updateMachineStatus = async (newStatus: MachineDetail['status']) => {
@@ -215,146 +224,69 @@ export default function MachineDetail() {
     });
   };
 
-  // FIXED: End downtime function without Alert.alert
-const handleEndDowntimeSimple = async () => {
+// FIXED: End downtime function (API-first, stable)
+const handleEndDowntime = async () => {
+  if (!activeDowntime || endingDowntime) return;
   if (!activeDowntime) {
     showToast('No active downtime found', 'error');
     return;
   }
 
-  // Check if user is operator
+  // Role guard
   if (user?.role !== 'operator') {
     showToast('Only operators can end a downtime', 'error');
-    return; // Stop here, don't try API call
+    return;
   }
 
-  try {
-    setEndingDowntime(true);
+  setEndingDowntime(true);
 
+  try {
     const downtimeId = activeDowntime._id || activeDowntime.id;
     if (!downtimeId) {
       throw new Error('No downtime ID found');
     }
 
-    const endTime = new Date().toISOString();
+    // ✅ API is source of truth
+    const response = await downtimeApi.end(downtimeId, {});
 
-    // 1. Update Redux store immediately
-    dispatch(endDowntime({
-      id: downtimeId,
-      endTime: endTime,
-      notes: 'Downtime ended by operator',
-    }));
-
-    // 2. Update local state immediately
-    setActiveDowntime(null);
-    showToast('Downtime ended locally', 'success');
-
-    // 3. Try to sync with API (online)
-    try {
-      const response = await downtimeApi.end(downtimeId, {
-        endTime,
-        notes: 'Downtime ended by operator',
-      });
-
-      if (response.data.success) {
-        showToast('Downtime synced to server', 'success');
-      } else {
-        showToast('Failed to sync downtime to server', 'error');
-      }
-    } catch (apiError: any) {
-      // If API fails due to 403, show toast
-      if (apiError?.response?.status === 403) {
-        showToast('Only operators can end a downtime', 'error');
-      } else {
-        console.log('🌐 API call failed (might be offline)', apiError);
-        showToast('Failed to sync downtime to server', 'error');
-      }
+    if (!response?.data?.success) {
+      showToast('Failed to end downtime', 'error');
+      return;
     }
 
+    // ✅ Update local state ONLY after backend success
+    dispatch(
+      endDowntime({
+        id: downtimeId,
+        endTime: response.data.data.endTime,
+        notes: 'Downtime ended by operator',
+      })
+    );
+
+    setActiveDowntime(null);
+
+// 🔥 IMPORTANT: re-check from server
+await checkActiveDowntime();
+
+showToast('Downtime ended successfully', 'success');
+
   } catch (error: any) {
-    console.error('❌ Error ending downtime:', error);
-    showToast('Error ending downtime: ' + error.message, 'error');
-    // Reload downtime state to ensure consistency
-    checkActiveDowntime();
+    const status = error?.response?.status;
+
+    if (status === 404) {
+      showToast('Downtime already ended or not found', 'error');
+    } else if (status === 403) {
+      showToast('Only operators can end a downtime', 'error');
+    } else {
+      console.log('🌐 End downtime failed:', error);
+      showToast('Unable to end downtime (offline or server issue)', 'error');
+    }
   } finally {
     setEndingDowntime(false);
   }
 };
 
 
-  // Function to end an existing downtime (from API)
-  const handleEndExistingDowntime = async () => {
-    try {
-      setLoadingDowntime(true);
-      
-      // Fetch all downtimes from API
-      const response = await downtimeApi.getAll();
-      
-      if (response.data.success && Array.isArray(response.data.data)) {
-        const machineDowntimes = response.data.data.filter((downtime: Downtime) => {
-          const machineId = downtime.machineId;
-          const isMatch = 
-            (typeof machineId === 'object' && machineId?._id === id) ||
-            machineId === id;
-          
-          return isMatch && !downtime.endTime;
-        });
-        
-        if (machineDowntimes.length === 0) {
-          showToast('No active downtimes found', 'info');
-          return;
-        }
-        
-        // If we found active downtimes, end the first one directly
-        if (machineDowntimes.length >= 1) {
-          const downtimeToEnd = machineDowntimes[0];
-          setActiveDowntime(downtimeToEnd);
-          
-          // End the downtime immediately
-          const downtimeId = downtimeToEnd._id || downtimeToEnd.id;
-          
-          if (!downtimeId) {
-            showToast('No downtime ID found', 'error');
-            return;
-          }
-          
-          const endTime = new Date().toISOString();
-          
-          // Update Redux store
-          dispatch(endDowntime({
-            id: downtimeId,
-            endTime: endTime,
-            notes: 'Downtime ended by operator'
-          }));
-          
-          // Update local state immediately
-          setActiveDowntime(null);
-          showToast('Downtime ended locally', 'success');
-          
-          // Try to sync with API
-          try {
-            const endResponse = await downtimeApi.end(downtimeId, {
-              endTime: endTime,
-              notes: 'Downtime ended by operator'
-            });
-            
-            if (endResponse.data.success) {
-              showToast('Downtime synced to server', 'success');
-            }
-          } catch (apiError) {
-            console.log('API sync failed (might be offline)', apiError);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching downtimes:', error);
-      showToast('Failed to load downtimes', 'error');
-    } finally {
-      setLoadingDowntime(false);
-    }
-  };
-
-  
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -573,11 +505,7 @@ const handleEndDowntimeSimple = async () => {
         {/* ONLY END DOWNTIME BUTTON */}
         <TouchableOpacity
           style={[styles.actionButton, styles.endButton]}
-          onPress={async () => {
-            await handleEndDowntimeSimple();
-            // Refresh downtime state after ending
-            checkActiveDowntime();
-          }}
+          onPress={handleEndDowntime}
           disabled={endingDowntime}
         >
           {endingDowntime ? (

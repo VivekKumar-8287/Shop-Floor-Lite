@@ -55,7 +55,7 @@ router.post('/start', protect, requireRole(['operator']), async (req, res) => {
     const existingDowntime = await DowntimeEvent.findOne({
   machineId,
   tenant_id: req.user.tenant_id,
-  endTime: null // only active downtimes
+  $or: [{ endTime: null }, { endTime: { $exists: false } }]
 });
 
 if (existingDowntime) {
@@ -72,6 +72,7 @@ if (existingDowntime) {
       reasonCategory,
       reasonSubCategory,
       startTime: new Date(),
+       endTime: null,
       notes,
       tenant_id: req.user.tenant_id,
       isSynced: true
@@ -95,46 +96,44 @@ if (existingDowntime) {
   }
 });
 
-// 3. End downtime
+// End downtime route
 router.post('/:id/end', protect, requireRole(['operator']), async (req, res) => {
   try {
     const downtime = await DowntimeEvent.findOne({
       _id: req.params.id,
       operatorId: req.user.userId,
       tenant_id: req.user.tenant_id,
-      endTime: null // Only end if not already ended
+      $or: [{ endTime: null }, { endTime: { $exists: false } }]
     });
 
     if (!downtime) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        error: 'Active downtime not found' 
+        error: 'Active downtime not found'
       });
     }
 
     const endTime = new Date();
     const startTime = new Date(downtime.startTime);
-    const duration = Math.round((endTime - startTime) / (1000 * 60)); // minutes
+    const duration = Math.round((endTime - startTime) / (1000 * 60));
 
     downtime.endTime = endTime;
     downtime.duration = duration;
     await downtime.save();
 
-    // Update machine status back to IDLE
     await Machine.findByIdAndUpdate(downtime.machineId, { status: 'IDLE' });
 
     res.json({
       success: true,
       message: 'Downtime ended',
-      data: {
-        ...downtime.toObject(),
-        duration
-      }
+      data: downtime
     });
+
   } catch (error) {
-    res.status(500).json({ 
+    console.error('❌ End downtime error:', error); // ← IMPORTANT
+    res.status(500).json({
       success: false,
-      error: 'Failed to end downtime' 
+      error: 'Failed to end downtime'
     });
   }
 });

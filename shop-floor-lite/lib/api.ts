@@ -3,6 +3,7 @@ import axios from 'axios';
 import { storage } from './storage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+// const API_BASE_URL = process.env.EXPO_PUBLIC_NGROK_URL;
 
 // Create axios instance
 const api = axios.create({
