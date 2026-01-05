@@ -15,6 +15,7 @@ import { useDispatch } from 'react-redux';
 import { setUser } from '../../store/authSlice';
 import { storage } from '../../lib/storage';
 import { authApi } from '../../lib/api';
+import { useToast, useApiErrorHandler } from '../../components/ToastProvider';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
@@ -28,6 +29,9 @@ export default function RegisterScreen() {
   
   const router = useRouter();
   const dispatch = useDispatch();
+  const { showToast } = useToast();
+const { handleApiError } = useApiErrorHandler();
+
 
  const handleRegister = async () => {
   console.log('=== REGISTER BUTTON CLICKED ===', Date.now());
@@ -43,19 +47,19 @@ export default function RegisterScreen() {
 
   if (password !== confirmPassword) {
     console.log('Password mismatch');
-    Alert.alert('Error', 'Passwords do not match');
+    showToast('Passwords do not match','error');
     return;
   }
 
   if (password.length < 6) {
     console.log('Password too short');
-    Alert.alert('Error', 'Password must be at least 6 characters');
+   showToast('Password must be at least 6 characters','error');
     return;
   }
 
   if (!email.includes('@')) {
     console.log('Invalid email');
-    Alert.alert('Error', 'Please enter a valid email address');
+    showToast('Please enter a valid email address','error');
     return;
   }
 

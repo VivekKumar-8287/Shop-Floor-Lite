@@ -8,6 +8,7 @@ interface ButtonProps {
   loading?: boolean;
   disabled?: boolean;
   style?: ViewStyle;
+  
 }
 
 export const Button: React.FC<ButtonProps> = ({

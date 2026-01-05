@@ -1,22 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
 import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
 import { useDispatch } from 'react-redux';
-import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
-import { setUser } from '../../store/authSlice';
-import { storage } from '../../lib/storage';
-import { authApi } from '../../lib/api';
+import { Input } from '../../components/Input';
 import { useToast } from '../../components/ToastProvider';
-import { setRole } from '../../store/authSlice';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authApi } from '../../lib/api';
+import { storage } from '../../lib/storage';
+import { setUser } from '../../store/authSlice';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');

@@ -16,6 +16,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useToast } from '../../components/ToastProvider';
 import { RootState, AppDispatch } from '../../store';
 import { endDowntime } from '../../store/downtimeSlice';
+import { syncManager } from '../../lib/sync'; 
+import { storage } from '../../lib/storage';
 
 interface MachineDetail {
   _id: string;
@@ -105,58 +107,55 @@ export default function MachineDetail() {
     }
   }, [id]);
 
-  // Check for active downtime
-  const checkActiveDowntime = useCallback(async () => {
-    try {
-      setLoadingDowntime(true);
-      console.log('🔍 Checking active downtime for machine:', id);
-      console.log('📱 Redux downtime entries:', downtimeEntries);
-      
-      // First check Redux for local active downtimes
-      if (downtimeEntries.length > 0) {
-        console.log('📱 Found active downtime in Redux:', downtimeEntries[0]);
-        setActiveDowntime(downtimeEntries[0] as Downtime);
-        return;
+const checkActiveDowntime = useCallback(async () => {
+  try {
+    setLoadingDowntime(true);
+
+       // 1️⃣ Fetch backend downtime for this machine by ID
+    const response = await downtimeApi.getById(id as string);
+    let activeBackend: Downtime | null = null;
+
+    if (response.data.success && response.data.data) {
+      const downtime = response.data.data;
+      // Only consider active downtime
+      if (!downtime.endTime) {
+        activeBackend = downtime;
       }
-      
-      // Then check API for server active downtimes
-      console.log('🌐 Checking API for active downtimes...');
-      const response = await downtimeApi.getAll();
-      
-      if (response.data.success && Array.isArray(response.data.data)) {
-        const machineDowntimes = response.data.data.filter((downtime: Downtime) => {
-          const machineId = downtime.machineId;
-          const isMatch = 
-            (typeof machineId === 'object' && machineId?._id === id) ||
-            machineId === id;
-          
-          return isMatch && !downtime.endTime;
-        });
-        
-        console.log('🔍 Filtered machine downtimes:', machineDowntimes);
-        
-        if (machineDowntimes.length > 0) {
-          console.log('🌐 Found active downtime on server:', machineDowntimes[0]);
-          setActiveDowntime(machineDowntimes[0]);
-        } else {
-          console.log('✅ No active downtime found');
-          setActiveDowntime(null);
-        }
-      } else {
-        setActiveDowntime(null);
-      }
-    } catch (error) {
-      console.error('❌ Error checking active downtime:', error);
-      // If API fails, rely on Redux data
-      if (downtimeEntries.length > 0) {
-        setActiveDowntime(downtimeEntries[0] as Downtime);
-      } else {
-        setActiveDowntime(null);
-      }
-    } finally {
-      setLoadingDowntime(false);
     }
-  }, [id, downtimeEntries]);
+    // 2️⃣ Update state, Redux, and storage
+    if (activeBackend) {
+      setActiveDowntime(activeBackend);
+
+      // Update Redux: replace/add downtime
+      dispatch(endDowntime(activeBackend)); // or addDowntime if your slice supports
+
+      // Update Secure Storage
+      const stored = await storage.getItem('downtimeEntries');
+      const localDowntimes: Downtime[] = stored ? JSON.parse(stored) : [];
+      const updatedLocal = localDowntimes.filter(d => d._id !== activeBackend!._id);
+      updatedLocal.push(activeBackend);
+      await storage.setItem('downtimeEntries', JSON.stringify(updatedLocal));
+    } else {
+      // No active downtime
+      setActiveDowntime(null);
+    }
+   
+
+  } catch (error) {
+    console.error('⚠️ Failed to fetch active downtime, fallback to local storage', error);
+
+    // Fallback: check local storage if backend fails
+    const stored = await storage.getItem('downtimeEntries');
+    const localDowntimes: Downtime[] = stored ? JSON.parse(stored) : [];
+    const activeLocal = localDowntimes.find(d =>
+      !d.endTime && (typeof d.machineId === 'string' ? d.machineId : d.machineId?._id) === id
+    );
+    setActiveDowntime(activeLocal || null);
+  } finally {
+    setLoadingDowntime(false);
+  }
+}, [id, downtimeEntries]);
+
 
  
   // Load all data
@@ -166,16 +165,6 @@ export default function MachineDetail() {
     checkActiveDowntime(); 
     }
   }, [id, loadMachine,endingDowntime]);
-
-//   useEffect(() => {
-//      loadMachine();
-//   //   checkActiveDowntime(); 
-//   if (downtimeEntries.length === 0) {
-//     setActiveDowntime(null);
-//   }
-// }, [id]);
-
-
 
   const updateMachineStatus = async (newStatus: MachineDetail['status']) => {
     if (!machine || machine.status === newStatus || updating) return;
@@ -214,73 +203,59 @@ export default function MachineDetail() {
     }
   };
 
-  const handleStartDowntime = () => {
-    router.push({
-      pathname: '/(tabs)/downtime',
-      params: { 
-        machineId: machine?._id || id, 
-        machineName: machine?.name 
-      }
-    });
-  };
+ const handleStartDowntime = async () => {
+  
+  router.push({ pathname: '/(tabs)/downtime', params: { machineId: id } });
+};
+
 
 // FIXED: End downtime function (API-first, stable)
 const handleEndDowntime = async () => {
   if (!activeDowntime || endingDowntime) return;
-  if (!activeDowntime) {
-    showToast('No active downtime found', 'error');
-    return;
-  }
-
-  // Role guard
-  if (user?.role !== 'operator') {
-    showToast('Only operators can end a downtime', 'error');
-    return;
-  }
 
   setEndingDowntime(true);
 
   try {
+    // Offline-ready: add to queue if offline
     const downtimeId = activeDowntime._id || activeDowntime.id;
-    if (!downtimeId) {
-      throw new Error('No downtime ID found');
+
+    if (!downtimeId) throw new Error('No downtime ID found');
+
+    if (navigator.onLine === false) {
+      // Add to queue for offline sync
+      await syncManager.addToQueue('downtime_end', { id: downtimeId, notes: 'Ended offline' });
+
+      // Update local state immediately
+      dispatch(
+        endDowntime({
+          id: downtimeId,
+          endTime: new Date().toISOString(),
+          notes: 'Ended offline',
+        })
+      );
+      setActiveDowntime(null);
+      showToast('Downtime queued for syncing (offline mode)', 'info');
+    } else {
+      // Online: call API directly
+      const response = await downtimeApi.end(downtimeId, {});
+      if (!response?.data?.success) throw new Error('Failed to end downtime');
+
+      dispatch(
+        endDowntime({
+          id: downtimeId,
+          endTime: response.data.data.endTime,
+          notes: 'Downtime ended by operator',
+        })
+      );
+
+      setActiveDowntime(null);
+      await checkActiveDowntime();
+      showToast('Downtime ended successfully', 'success');
     }
-
-    // ✅ API is source of truth
-    const response = await downtimeApi.end(downtimeId, {});
-
-    if (!response?.data?.success) {
-      showToast('Failed to end downtime', 'error');
-      return;
-    }
-
-    // ✅ Update local state ONLY after backend success
-    dispatch(
-      endDowntime({
-        id: downtimeId,
-        endTime: response.data.data.endTime,
-        notes: 'Downtime ended by operator',
-      })
-    );
-
-    setActiveDowntime(null);
-
-// 🔥 IMPORTANT: re-check from server
-await checkActiveDowntime();
-
-showToast('Downtime ended successfully', 'success');
 
   } catch (error: any) {
-    const status = error?.response?.status;
-
-    if (status === 404) {
-      showToast('Downtime already ended or not found', 'error');
-    } else if (status === 403) {
-      showToast('Only operators can end a downtime', 'error');
-    } else {
-      console.log('🌐 End downtime failed:', error);
-      showToast('Unable to end downtime (offline or server issue)', 'error');
-    }
+    console.error('End downtime error:', error);
+    showToast(error.message || 'Failed to end downtime', 'error');
   } finally {
     setEndingDowntime(false);
   }

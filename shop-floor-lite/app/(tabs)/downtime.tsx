@@ -18,8 +18,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { addDowntimeEntry } from '../../store/downtimeSlice';
 import { RootState } from '../../store';
 import { downtimeApi } from '../../lib/api';
-import { useToast } from '../../components/ToastProvider';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useToast, useApiErrorHandler } from '../../components/ToastProvider';
+import { storage } from '../../lib/storage';
 
 // Define reason tree type
 interface ReasonNode {
@@ -56,6 +57,8 @@ export default function DowntimeScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const { showToast } = useToast();
+const { handleApiError } = useApiErrorHandler();
+
   
   const user = useSelector((state: RootState) => state.auth.user);
   const machines = useSelector((state: RootState) => state.machines.machines);
@@ -220,12 +223,12 @@ export default function DowntimeScreen() {
 
   const handleStartDowntime = async () => {
     if (!selectedMachine) {
-      Alert.alert('Error', 'Please select a machine first');
+  showToast('Please select a machine first',"error");
       return;
     }
     
     if (!selectedReason) {
-      Alert.alert('Error', 'Please select a primary reason');
+      showToast('Please select a primary reason','error');
       return;
     }
 
@@ -329,32 +332,19 @@ export default function DowntimeScreen() {
         
         dispatch(addDowntimeEntry(offlineEntry));
         const entries = [...state.entries];
-AsyncStorage.setItem('downtime_entries', JSON.stringify(entries));
+storage.setItem('downtime_entries', JSON.stringify(entries));
         
-        Alert.alert(
-          'Queued Offline',
-          'Downtime saved locally. It will sync automatically when you reconnect.',
-          [
-            { 
-              text: 'OK', 
-              onPress: () => {
+        
                 showToast('Downtime saved offline', 'info');
-                router.back();
-              }
-            }
-          ]
-        );
+           
       } else {
         console.error('API Error details:', {
           status: error.response?.status,
           data: error.response?.data,
           message: error.message
         });
-        
-        Alert.alert(
-          'Error',
-          error.response?.data?.error || error.message || 'Failed to start downtime'
-        );
+
+           handleApiError(error);
       }
     } finally {
       setLoading(false);
