@@ -17,8 +17,7 @@ A full-stack cross-platform mobile application built for manufacturing environme
 
 ## 🎥 Video Demo 
 
-https://github.com/user-attachments/assets/a85d9567-a3e8-4788-96bb-198f2826dc33
-
+https://github.com/user-attachments/assets/7ad02a78-815f-4845-81e1-af17eac0c17c
 
 
 ## 🏗️ Project Structure
