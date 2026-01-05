@@ -274,7 +274,7 @@ export default function RegisterScreen() {
           />
 
           {/* Add a test button */}
-          <Button
+          {/* <Button
             title="Test Direct Fetch"
             onPress={async () => {
               try {
@@ -303,7 +303,7 @@ export default function RegisterScreen() {
             }}
             variant="outline"
             style={{ marginBottom: 10 }}
-          />
+          /> */}
 
           <View style={styles.loginContainer}>
             <Text style={styles.loginText}>Already have an account? </Text>

@@ -1,6 +1,8 @@
 // api.ts
 import axios from 'axios';
 import { storage } from './storage';
+import NetInfo from '@react-native-community/netinfo';
+
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 // const API_BASE_URL = process.env.EXPO_PUBLIC_NGROK_URL;
@@ -123,6 +125,7 @@ export const syncApi = {
   getSyncStatus: () => api.get('/sync/status'),
   bulkSync: (data: { downtimeEvents?: any[]; maintenanceTasks?: any[] }) => api.post('/sync/bulk', data),
 };
+
 
 // Export default axios instance if needed
 export default api;

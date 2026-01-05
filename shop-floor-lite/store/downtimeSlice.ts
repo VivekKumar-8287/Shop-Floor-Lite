@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { DowntimeEntry } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface DowntimeState {
   entries: DowntimeEntry[];
@@ -19,7 +20,9 @@ const downtimeSlice = createSlice({
       state.entries = action.payload;
     },
     addDowntimeEntry: (state, action: PayloadAction<DowntimeEntry>) => {
-      state.entries.push(action.payload);
+      state.entries.unshift(action.payload);
+      const entries = [...state.entries];
+  AsyncStorage.setItem('downtime_entries', JSON.stringify(entries));
     },
     endDowntime: (state, action: PayloadAction<{id: string, endTime: string}>) => {
       const entry = state.entries.find(e => e._id === action.payload.id);

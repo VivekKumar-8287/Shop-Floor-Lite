@@ -16,6 +16,7 @@ import { storage } from '../../lib/storage';
 import { authApi } from '../../lib/api';
 import { useToast } from '../../components/ToastProvider';
 import { setRole } from '../../store/authSlice';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -166,12 +167,12 @@ export default function LoginScreen() {
           />
 
           {/* Debug button - optional */}
-          <Button
+         {/*  <Button
             title="Debug Storage"
             onPress={debugStorage}
             variant="outline"
             style={{ marginBottom: 10 }}
-          />
+          /> */}
 
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>Don't have an account? </Text>

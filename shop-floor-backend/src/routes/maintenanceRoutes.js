@@ -1,8 +1,8 @@
 // routes/maintenanceRoutes.js
 import express from 'express';
-import MaintenanceTask from '../models/Maintenance.js';
-import Machine from '../models/Machine.js';
 import { protect, requireRole } from '../middleware/authMiddleware.js';
+import Machine from '../models/Machine.js';
+import MaintenanceTask from '../models/Maintenance.js';
 
 const router = express.Router();
 
@@ -26,7 +26,6 @@ router.get('/machine/:machineId', protect, async (req, res) => {
   }
 });
 
-// routes/maintenanceRoutes.js
 
 // Get ALL maintenance tasks (not filtered by machine)
 router.get('/', protect, async (req, res) => {

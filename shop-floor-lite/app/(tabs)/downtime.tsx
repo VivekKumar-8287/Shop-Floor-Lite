@@ -328,6 +328,8 @@ export default function DowntimeScreen() {
         };
         
         dispatch(addDowntimeEntry(offlineEntry));
+        const entries = [...state.entries];
+AsyncStorage.setItem('downtime_entries', JSON.stringify(entries));
         
         Alert.alert(
           'Queued Offline',

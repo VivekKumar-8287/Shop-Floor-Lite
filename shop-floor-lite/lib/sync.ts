@@ -125,4 +125,8 @@ class SyncManager {
   }
 }
 
+export const syncOfflineData = async () => {
+  await syncManager.syncPendingItems();
+};
+
 export const syncManager = new SyncManager();

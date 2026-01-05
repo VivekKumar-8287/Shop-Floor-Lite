@@ -13,9 +13,12 @@ import { useSelector } from 'react-redux';
 import { MaterialIcons } from '@expo/vector-icons';
 import { RootState } from '../../store';
 import { useToast } from '../../components/ToastProvider';
-import { maintenanceApi } from '../../lib/api';
+import { machineApi, maintenanceApi, syncApi } from '../../lib/api';
 import { router } from 'expo-router';
 import { useApiErrorHandler } from '../../components/ToastProvider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo'; 
+import { STORAGE_KEYS } from '../../lib/storageKeys';
 
 interface MaintenanceTask {
   _id: string;
@@ -36,6 +39,9 @@ export default function MaintenanceScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<'ALL' | 'DUE' | 'OVERDUE' | 'DONE'>('ALL');
+  const [machines, setMachines] = useState<{ _id: string; name: string }[]>([]);
+const [selectedMachine, setSelectedMachine] = useState<string | null>(null);
+
   
   const user = useSelector((state: RootState) => state.auth.user);
   const { showToast } = useToast();
@@ -44,44 +50,81 @@ export default function MaintenanceScreen() {
   const isSupervisor = user?.role === 'supervisor';
   const isOperator = user?.role === 'operator';
 
-  // Load maintenance tasks
 const loadTasks = async () => {
   try {
     setLoading(true);
-    
-    let response;
-    if (isOperator) {
-      // For operators, show overdue tasks
-      response = await maintenanceApi.getOverdue();
+
+    const { isConnected } = await NetInfo.fetch();
+    let responseTasks: MaintenanceTask[] = [];
+
+    if (isConnected) {
+      const response = isOperator
+        ? await maintenanceApi.getOverdue()
+        : await maintenanceApi.getAll({ limit: 50 });
+
+      responseTasks = response.data.data || [];
+
+      if (responseTasks.length > 0) {
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.MAINTENANCE_CACHE,
+          JSON.stringify(responseTasks)
+        );
+      }
     } else {
-      // For supervisors, show all tasks using the new getAll endpoint
-      response = await maintenanceApi.getAll({
-        limit: 50 // Optional: limit the number of tasks
-      });
+      const cached = await AsyncStorage.getItem(STORAGE_KEYS.MAINTENANCE_CACHE);
+      responseTasks = cached ? JSON.parse(cached) : [];
+      showToast('Offline mode: showing cached data', 'info');
     }
-    
-    console.log('Maintenance tasks response:', response.data);
-    
-    if (response.data.success && Array.isArray(response.data.data)) {
-      console.log('Tasks loaded:', response.data.data.length);
-      setTasks(response.data.data);
-    } else {
-      console.log('No maintenance tasks found');
-      setTasks([]);
-    }
-  } catch (error: any) {
-    console.error('Failed to load maintenance tasks:', error);
+
+    setTasks(responseTasks);
+  } catch (e) {
+    console.error(e);
     showToast('Failed to load maintenance tasks', 'error');
-    setTasks([]);
   } finally {
     setLoading(false);
     setRefreshing(false);
   }
 };
 
-  useEffect(() => {
-    loadTasks();
-  }, []);
+
+useEffect(() => {
+  const loadMachines = async () => {
+    try {
+        const response = await machineApi.getAll();
+            console.log("Response data",response.data)
+      setMachines(response.data.data);
+    } catch (error) {
+      showToast('Failed to load machines', 'error');
+    }
+  };
+  loadMachines();
+  loadTasks()
+}, []);
+
+useEffect(() => {
+  const unsubscribe = NetInfo.addEventListener(async (state) => {
+    if (state.isConnected) {
+      // Load offline tasks from AsyncStorage
+      const stored = await AsyncStorage.getItem(STORAGE_KEYS.MAINTENANCE_OFFLINE_QUEUE);
+      const offlineTasks = stored ? JSON.parse(stored) : [];
+
+      if (offlineTasks.length > 0) {
+        try {
+          await syncApi.syncMaintenance(offlineTasks);
+          await AsyncStorage.removeItem(STORAGE_KEYS.MAINTENANCE_OFFLINE_QUEUE); // clear synced tasks
+          showToast('Offline tasks synced successfully', 'success');
+        } catch (error: any) {
+          showToast('Failed to sync offline tasks', 'error');
+        }
+      }
+
+      // Reload tasks from server
+      loadTasks();
+    }
+  });
+  return () => unsubscribe();
+}, []);
+
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -95,24 +138,48 @@ const loadTasks = async () => {
 
   // Handle mark as complete (operator only)
   const handleCompleteTask = async (taskId: string) => {
-    try {
-      setActionLoading(taskId);
+  try {
+    setActionLoading(taskId);
+    const state = await NetInfo.fetch();
+    const isOnline = state.isConnected;
+
+    if (isOnline) {
+      // Online: complete directly via API
       const response = await maintenanceApi.complete(taskId, {
         completionNotes: 'Task completed by operator'
       });
-      
+
       if (response.data.success) {
         showToast('Maintenance task completed', 'success');
-        await loadTasks(); // Refresh list
+        await loadTasks();
       } else {
         showToast(response.data.error || 'Failed to complete task', 'error');
       }
-    } catch (error: any) {
-      handleApiError(error, 'Failed to complete task');
-    } finally {
-      setActionLoading(null);
+    } else {
+      // Offline: save task locally to sync later
+      const task = tasks.find(t => t._id === taskId);
+      if (task) {
+          // Save task to AsyncStorage for offline sync
+const stored = await AsyncStorage.getItem('offlineMaintenanceTasks');
+const offlineTasks = stored ? JSON.parse(stored) : [];
+offlineTasks.push({ ...task, completionNotes: 'Task completed offline' });
+await AsyncStorage.setItem(STORAGE_KEYS.MAINTENANCE_OFFLINE_QUEUE, JSON.stringify(offlineTasks));
+
+        // Update UI immediately
+        setTasks(prev =>
+          prev.map(t => t._id === taskId ? { ...t, status: 'DONE', completionNotes: offlineTask.completionNotes } : t)
+        );
+
+        showToast('Task marked complete offline. It will sync when online.', 'info');
+      }
     }
-  };
+  } catch (error: any) {
+    handleApiError(error, 'Failed to complete task');
+  } finally {
+    setActionLoading(null);
+  }
+};
+
 
   // Get status color
   const getStatusColor = (status: string) => {
@@ -171,10 +238,21 @@ const loadTasks = async () => {
   };
 
   // Filter tasks based on selected filter
-  const getFilteredTasks = () => {
-    if (filter === 'ALL') return tasks;
-    return tasks.filter(task => task.status === filter);
-  };
+ // Filter tasks by selected machine
+const getFilteredTasks = () => {
+  let filtered = tasks;
+  if (selectedMachine) {
+  filtered = filtered.filter(task => {
+    if (typeof task.machineId === 'string') return task.machineId === selectedMachine;
+    if (typeof task.machineId === 'object') return task.machineId._id === selectedMachine;
+    return false;
+  });
+}
+  if (filter !== 'ALL') {
+    filtered = filtered.filter(task => task.status === filter);
+  }
+  return filtered;
+};
 
   const filteredTasks = getFilteredTasks();
 

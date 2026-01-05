@@ -172,7 +172,7 @@ const performLogout = async () => {
         />
       </View>
 
-      <Text style={styles.footerText}>Shop Floor Lite © 2024</Text>
+      <Text style={styles.footerText}>Shop Floor Lite © 2025</Text>
     </ScrollView>
   );
 }
